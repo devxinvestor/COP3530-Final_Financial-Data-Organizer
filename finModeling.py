@@ -1,6 +1,7 @@
 
 import requests
 import pandas as pd
+from collections import defaultdict
 
 
 
@@ -22,6 +23,9 @@ def getTickers(email):
         tickerDf.iloc[i, 2] = tickerDict[str(i)]['title']
     return tickerDf
 
+def getAllTickers():
+    return list(getTickers("anthonytaylor@ufl.edu")['Ticker'])
+
 class Company:
     
     email = "anthonytaylor@ufl.edu"
@@ -31,6 +35,7 @@ class Company:
         self.ticker = ticker
         self.cik = self.findCik()
         self.companyFacts = self.findCompanyFacts()
+        self.companyDataFrame = pd.DataFrame()
 
     def findCik(self):
         cikRow = self.tickerDf[self.tickerDf['Ticker'] == self.ticker]
@@ -41,35 +46,62 @@ class Company:
         return self.cik 
     
     def findCompanyFacts(self):
-        companyFacts = requests.get(
-            f'https://data.sec.gov/api/xbrl/companyfacts/CIK{self.cik}.json',
-            headers={'User-Agent': self.email})
-        companyFacts = companyFacts.json()
-        return companyFacts
-
-class Data:
+        try:
+            response = requests.get(
+                f'https://data.sec.gov/api/xbrl/companyfacts/CIK{self.cik}.json',
+                headers={'User-Agent': self.email}
+            )
+            response.raise_for_status()  # Check if the request was successful
+            if response.content:  # Check if the response is not empty
+                companyFacts = response.json()
+                return companyFacts
+            else:
+                return None
+        except requests.exceptions.RequestException as e:
+            return None
+    
+    def getLineItemData(self, lineItem):
+        if self.companyFacts:
+            try:
+                return self.companyFacts['facts']['us-gaap'][lineItem]['units']['USD']
+            except KeyError as e:
+                return None
+        else:
+            return None
         
-        def __init__(self, company):
-            self.company = company
-            self.data = self.company.findCompanyFacts()['facts']['us-gaap']
-        
-        def getLineItems(self):
-            return self.data.keys()
-        
-        def getLineItemData(self, lineItem):
-            return self.data[lineItem]['units']['USD']
-        
-        def getLineItemDataPoint(self, lineItem, quarter):
-            return self.getLineItemData(lineItem)[quarter]
+    def getLineItemDataPoint(self, lineItem, quarter):
+        data = self.getLineItemData(lineItem)
+        return data.get(quarter, None)
+    
+    def getDataPoints(self, lineItem):
+        data_item = self.getLineItemData(lineItem)
+        self.companyDataFrame[lineItem] = data_item
 
+class FinancialStatement:
+    def __init__(self, tickers):
+        self.tickers = tickers
+        self.data_dict = defaultdict()
 
+    def getLineItemData(self, lineItem):
+        for ticker in self.tickers:
+            company = Company(ticker)
+            data = company.getLineItemData(lineItem)
+            self.data_dict[ticker] = data
+        return self.data_dict
+    
 
-
-
+tickers = getAllTickers()
+fs = FinancialStatement(tickers)
+data = fs.getLineItemData('FinanceLeaseInterestExpense')
+print(data)
+'''
+data_dict = defaultdict()
 tickerdf = getTickers("anthonytaylor@ufl.edu")
 for tickers in tickerdf['Ticker'][1]:
     company = Company(tickers)
-    print(company.findCompanyFacts()['facts']['us-gaap'].keys())
+    data = company.getLineItemData('FinanceLeaseInterestExpense')
+    print(company.getAllImformation())
+'''
 #Keys of inital dictionary that conatins all data for one company
 #Output should look like ['cik', 'entityName', 'facts']
 #Facts contains all data and is a dictionary
