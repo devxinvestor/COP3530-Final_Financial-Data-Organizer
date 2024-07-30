@@ -2,18 +2,24 @@
 import requests
 import pandas as pd
 import re
+import time
+from datetime import datetime
 
+tickerTime = 0
 
 def getTickers(email):
     """
     This function retrieves all the tickers on the SEC website and returns them in a dataframe
     """
+    
     headers = {'User-Agent': f"{email}"}
+    startTime = time.time()
     companyTickers = requests.get(
         "https://www.sec.gov/files/company_tickers.json",
         headers=headers
         )
-
+    endTime = time.time()
+    tickerTime = endTime - startTime
     tickerDict = companyTickers.json()
     tickerDf = pd.DataFrame(index = range(len(tickerDict)), columns = ["CIK", "Ticker", "Name"])
     for i in range(len(tickerDict)): 
@@ -52,13 +58,20 @@ class Company:
     def printRawCompanyDataKeys(self):
         print(self.rawCompanyData.keys())
         
+    def searchRawCompanyDataKeys(self, keyword):
+        matchList = []
+        keyword = re.compile(keyword)
+        for key in self.rawCompanyData.keys():
+            if re.search(keyword, key, re.IGNORECASE):
+                matchList.append(key)
+        
     def rawDataToIncomeStatementDict(self):
         '''
         use regex to form condensed dictionary of just income statement items 
         '''
         incomeStatementDict = {}
         #Set revenue keywords useing re package
-        revenueKeys = [r".*[Rr]evenue.*", r'[Nn]et[Ss]ales']
+        revenueKeys = ["[Ss]ales[Rr]evenue[Nn]et"]
         revenueKeys = [re.compile(key) for key in revenueKeys]
         #Search each possible keyWord with each item in the data until match is found
         for keyWord in revenueKeys:
@@ -67,7 +80,7 @@ class Company:
                     incomeStatementDict['Revenue'] = self.rawCompanyData[key]['units']['USD']
                     break
         #Do the same all the way dow nthe income statement
-        costKeys = [r"[Cc]ost[Oo]f[Gs]oods[Ss]old", r'[Cc]ost[Oo]f[Rr]evenue']
+        costKeys = [r"[Cc]ost[Oo]f[Gs]oods[Ss]old", r'[Cc]ost[Oo]f[Rr]evenue', r'CostOfGoodsAndServicesSold']
         costKeys = [re.compile(key) for key in costKeys]
         for keyWord in costKeys:
             for key in self.rawCompanyData.keys():
@@ -121,11 +134,27 @@ class Company:
     def printIncomeStatementDictKeys(self):
         print(self.incomeStatementDict.keys())
         
-    def formIncStateFromDict(self):
+    def printIncomeStatementDictKeys2(self):
         print(self.incomeStatementDict['Revenue'])
-        #incomeDf = pd.DataFrame(index = range(len(tickerDict)), columns = ["CIK", "Ticker", "Name"])
+        
+    def formIncStateFromDict(self):
+        colDict = {}
+        item = 'CostOfGoodsSold'
+        # iterate through dictionary to create a condensed dictionary that feeds into dataframe
+        for i in range(len(self.incomeStatementDict[item])):
+            #create a tuple of date times to represent a range of dates for each value 
+             start = self.incomeStatementDict[item][i]['start']
+             end = self.incomeStatementDict[item][i]['end']
+             format = "%Y-%m-%d"
+             start = datetime.strptime(start,format)
+             end = datetime.strptime(end,format)
+             quarter = (start.date(), end.date())
+             colDict[quarter] = [self.incomeStatementDict[item][i]['val']]
+        incomeDf = pd.DataFrame(colDict)
+        return incomeDf
 
     def printIncState(self):
+        pd.set_option('display.max_rows', None)
         print(self.incomeStatement)
             
     
@@ -139,9 +168,11 @@ class Company:
 # tsla = Company("TSLA")
 # tsla.printRawCompanyDataKeys()
 # tsla.printIncomeStatementDictKeys()
+        
 aapl = Company("AAPL")
-#aapl.printRawCompanyDataKeys()
-#aapl.printIncomeStatementDictKeys()
+aapl.printRawCompanyDataKeys()
+aapl.printIncState()
+aapl.printIncomeStatementDictKeys2()
 
 #Keys of inital dictionary that conatins all data for one company
 #Output should look like ['cik', 'entityName', 'facts']
