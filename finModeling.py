@@ -1,7 +1,7 @@
 
 import requests
 import pandas as pd
-
+import re
 
 
 def getTickers(email):
@@ -30,7 +30,9 @@ class Company:
     def __init__(self, ticker):
         self.ticker = ticker
         self.cik = self.findCik()
-        self.companyFacts = self.findCompanyFacts()
+        self.rawCompanyData = self.findRawCompanyData()
+        self.incomeStatementDict = self.rawDataToIncomeStatementDict()
+        self.incomeStatement = self.formIncStateFromDict()
 
     def findCik(self):
         cikRow = self.tickerDf[self.tickerDf['Ticker'] == self.ticker]
@@ -40,36 +42,107 @@ class Company:
     def getCik(self):
         return self.cik 
     
-    def findCompanyFacts(self):
-        companyFacts = requests.get(
+    def findRawCompanyData(self):
+        rawCompanyData = requests.get(
             f'https://data.sec.gov/api/xbrl/companyfacts/CIK{self.cik}.json',
             headers={'User-Agent': self.email})
-        companyFacts = companyFacts.json()
-        return companyFacts
-
-class Data:
+        rawCompanyData = rawCompanyData.json()
+        return rawCompanyData['facts']['us-gaap']
+    
+    def printRawCompanyDataKeys(self):
+        print(self.rawCompanyData.keys())
         
-        def __init__(self, company):
-            self.company = company
-            self.data = self.company.findCompanyFacts()['facts']['us-gaap']
+    def rawDataToIncomeStatementDict(self):
+        '''
+        use regex to form condensed dictionary of just income statement items 
+        '''
+        incomeStatementDict = {}
+        #Set revenue keywords useing re package
+        revenueKeys = [r".*[Rr]evenue.*", r'[Nn]et[Ss]ales']
+        revenueKeys = [re.compile(key) for key in revenueKeys]
+        #Search each possible keyWord with each item in the data until match is found
+        for keyWord in revenueKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['Revenue'] = self.rawCompanyData[key]['units']['USD']
+                    break
+        #Do the same all the way dow nthe income statement
+        costKeys = [r"[Cc]ost[Oo]f[Gs]oods[Ss]old", r'[Cc]ost[Oo]f[Rr]evenue']
+        costKeys = [re.compile(key) for key in costKeys]
+        for keyWord in costKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['CostOfGoodsSold'] = self.rawCompanyData[key]['units']['USD']
+                    break
+        GPKeys = [r"[Gg]ross[Pp]rofit.*"]
+        GPKeys = [re.compile(key) for key in GPKeys]
+        for keyWord in GPKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['GrossProfit'] = self.rawCompanyData[key]['units']['USD']
+                    break     
+        OpExKeys = [r"[Oo]perating[Ee]xpenses"]
+        OpExKeys = [re.compile(key) for key in OpExKeys]
+        for keyWord in OpExKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['OperatingExpenses'] = self.rawCompanyData[key]['units']['USD']
+                    break
+        EBITKeys = [r"[Ii]ncome[Ff]rom[Oo]perations*"]
+        EBITKeys = [re.compile(key) for key in EBITKeys]
+        for keyWord in EBITKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['EBIT'] = self.rawCompanyData[key]['units']['USD']
+                    break
+        preTaxIncKeys = [r"[Ii]ncome[Bb]efore[Tt]axes*"]
+        PreTaxIncKeys = [re.compile(key) for key in preTaxIncKeys]
+        for keyWord in PreTaxIncKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['PreTaxIncome'] = self.rawCompanyData[key]['units']['USD']
+                    break
+        incomeKeys = [r"\b[Nn]et[Ii]ncome"]
+        incomeKeys = [re.compile(key) for key in incomeKeys]
+        for keyWord in incomeKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['NetIncome'] = self.rawCompanyData[key]['units']['USD']
+                    break
+        incomeKeys = [r"[Ee]arnings[Pp]er[Ss]hare[Bb]asic"]
+        incomeKeys = [re.compile(key) for key in incomeKeys]
+        for keyWord in incomeKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['EPS'] = self.rawCompanyData[key]['units']['USD/shares']
+                    break
+        return incomeStatementDict
+    
+    def printIncomeStatementDictKeys(self):
+        print(self.incomeStatementDict.keys())
         
-        def getLineItems(self):
-            return self.data.keys()
-        
-        def getLineItemData(self, lineItem):
-            return self.data[lineItem]['units']['USD']
-        
-        def getLineItemDataPoint(self, lineItem, quarter):
-            return self.getLineItemData(lineItem)[quarter]
+    def formIncStateFromDict(self):
+        print(self.incomeStatementDict['Revenue'])
+        #incomeDf = pd.DataFrame(index = range(len(tickerDict)), columns = ["CIK", "Ticker", "Name"])
+
+    def printIncState(self):
+        print(self.incomeStatement)
+            
+    
+    
+    
 
 
 
 
 
-tickerdf = getTickers("anthonytaylor@ufl.edu")
-for tickers in tickerdf['Ticker'][1]:
-    company = Company(tickers)
-    print(company.findCompanyFacts()['facts']['us-gaap'].keys())
+# tsla = Company("TSLA")
+# tsla.printRawCompanyDataKeys()
+# tsla.printIncomeStatementDictKeys()
+aapl = Company("AAPL")
+#aapl.printRawCompanyDataKeys()
+#aapl.printIncomeStatementDictKeys()
+
 #Keys of inital dictionary that conatins all data for one company
 #Output should look like ['cik', 'entityName', 'facts']
 #Facts contains all data and is a dictionary
