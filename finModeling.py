@@ -170,9 +170,9 @@ class Company:
 # tsla.printIncomeStatementDictKeys()
         
 aapl = Company("AAPL")
-aapl.printRawCompanyDataKeys()
+# aapl.printRawCompanyDataKeys()
 aapl.printIncState()
-aapl.printIncomeStatementDictKeys2()
+# aapl.printIncomeStatementDictKeys2()
 
 #Keys of inital dictionary that conatins all data for one company
 #Output should look like ['cik', 'entityName', 'facts']
