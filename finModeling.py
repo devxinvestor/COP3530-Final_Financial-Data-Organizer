@@ -1,4 +1,3 @@
-
 import requests
 import pandas as pd
 from collections import defaultdict
@@ -80,20 +79,134 @@ class Company:
 class FinancialStatement:
     def __init__(self, tickers):
         self.tickers = tickers
-        self.data_dict = defaultdict()
+        self.data_dict = defaultdict(dict)
+        self.keyword_mapping = {
+            # Income Statement items
+            "Revenue": ["Revenue", "Sales", "Turnover", "TopLine"],
+            "NetIncome": ["NetIncome", "NetEarnings", "NetProfit", "BottomLine"],
+            "OperatingIncome": ["OperatingIncome", "OperatingProfit", "EBIT"],
+            "GrossProfit": ["GrossProfit", "GrossIncome"],
+            "CostOfGoodsSold": ["CostOfGoodsSold", "COGS", "CostOfSales"],
+            "TotalRevenue": ["TotalRevenue", "TotalSales"],
+            "NetRevenue": ["NetRevenue", "NetSales"],
+            "GrossRevenue": ["GrossRevenue", "GrossSales"],
+            "InterestIncome": ["InterestIncome", "InterestRevenue"],
+            "InterestExpense": ["InterestExpense", "InterestCost"],
+            "IncomeTaxExpense": ["IncomeTaxExpense", "IncomeTaxes", "TaxExpense"],
+            "SellingGeneralAndAdministrative": ["SellingGeneralAndAdministrative", "SG&A", "GeneralAndAdministrative", "G&A"],
+            "ResearchAndDevelopment": ["ResearchAndDevelopment", "R&D", "ResearchExpense"],
+            "DepreciationAndAmortization": ["DepreciationAndAmortization", "D&A", "Depreciation", "Amortization"],
+            "OperatingExpenses": ["OperatingExpenses", "OpEx"],
+            "NonOperatingIncome": ["NonOperatingIncome", "NonOperatingRevenue"],
+            "NonOperatingExpenses": ["NonOperatingExpenses", "NonOperatingCost"],
+            "OtherIncome": ["OtherIncome", "MiscellaneousIncome"],
+            "OtherExpenses": ["OtherExpenses", "MiscellaneousExpenses"],
+            "ExtraordinaryItems": ["ExtraordinaryItems", "UnusualItems"],
+            "NetOperatingIncome": ["NetOperatingIncome", "NOI"],
+            "EarningsBeforeTax": ["EarningsBeforeTax", "EBT", "PreTaxEarnings"],
+            "EarningsBeforeInterestAndTax": ["EarningsBeforeInterestAndTax", "EBIT"],
+            "EarningsBeforeInterestTaxesDepreciationAndAmortization": ["EarningsBeforeInterestTaxesDepreciationAndAmortization", "EBITDA"],
+            "BasicEarningsPerShare": ["BasicEarningsPerShare", "BasicEPS"],
+            "DilutedEarningsPerShare": ["DilutedEarningsPerShare", "DilutedEPS"],
+            "ComprehensiveIncome": ["ComprehensiveIncome", "TotalComprehensiveIncome"],
+            "MinorityInterest": ["MinorityInterest", "NoncontrollingInterest"],
+            "OperatingMargin": ["OperatingMargin", "OperatingProfitMargin"],
+            "GrossMargin": ["GrossMargin", "GrossProfitMargin"],
+            "NetProfitMargin": ["NetProfitMargin", "NetIncomeMargin"],
+            "IncomeFromContinuingOperations": ["IncomeFromContinuingOperations", "OperatingIncomeContinuingOperations"],
+            "IncomeFromDiscontinuedOperations": ["IncomeFromDiscontinuedOperations", "OperatingIncomeDiscontinuedOperations"],
+            # Balance Sheet items
+            "TotalAssets": ["TotalAssets", "Assets"],
+            "CurrentAssets": ["CurrentAssets", "ShortTermAssets"],
+            "NonCurrentAssets": ["NonCurrentAssets", "LongTermAssets"],
+            "CashAndCashEquivalents": ["CashAndCashEquivalents", "Cash"],
+            "AccountsReceivable": ["AccountsReceivable", "Receivables"],
+            "Inventory": ["Inventory", "Stock"],
+            "PrepaidExpenses": ["PrepaidExpenses", "Prepayments"],
+            "PropertyPlantAndEquipment": ["PropertyPlantAndEquipment", "PP&E", "FixedAssets"],
+            "IntangibleAssets": ["IntangibleAssets", "Intangibles"],
+            "Goodwill": ["Goodwill"],
+            "DeferredTaxAssets": ["DeferredTaxAssets", "DeferredTaxes"],
+            "TotalLiabilities": ["TotalLiabilities", "Liabilities"],
+            "CurrentLiabilities": ["CurrentLiabilities", "ShortTermLiabilities"],
+            "NonCurrentLiabilities": ["NonCurrentLiabilities", "LongTermLiabilities"],
+            "AccountsPayable": ["AccountsPayable", "Payables"],
+            "ShortTermDebt": ["ShortTermDebt", "CurrentDebt"],
+            "LongTermDebt": ["LongTermDebt", "LT Debt"],
+            "AccruedLiabilities": ["AccruedLiabilities", "AccruedExpenses"],
+            "DeferredRevenue": ["DeferredRevenue", "UnearnedRevenue"],
+            "DeferredTaxLiabilities": ["DeferredTaxLiabilities", "DeferredTaxes"],
+            "OtherCurrentLiabilities": ["OtherCurrentLiabilities", "OtherSTLiabilities"],
+            "OtherNonCurrentLiabilities": ["OtherNonCurrentLiabilities", "OtherLTLiabilities"],
+            "TotalEquity": ["TotalEquity", "ShareholdersEquity", "Equity"],
+            "CommonStock": ["CommonStock", "ShareCapital"],
+            "RetainedEarnings": ["RetainedEarnings", "AccumulatedEarnings"],
+            "AdditionalPaidInCapital": ["AdditionalPaidInCapital", "APIC"],
+            "TreasuryStock": ["TreasuryStock", "TreasuryShares"],
+            "AccumulatedOtherComprehensiveIncome": ["AccumulatedOtherComprehensiveIncome", "AOCI"],
+            "MinorityInterest": ["MinorityInterest", "NoncontrollingInterest"],
+            "BookValuePerShare": ["BookValuePerShare", "BVPS"],
+            "WorkingCapital": ["WorkingCapital", "NetWorkingCapital"],
+            "NetAssets": ["NetAssets"],
+            "TotalDebt": ["TotalDebt"],
+            "CurrentPortionOfLongTermDebt": ["CurrentPortionOfLongTermDebt", "CurrentLTDebt"],
+            "Investments": ["Investments"],
+            "PreferredStock": ["PreferredStock"],
+            "CapitalSurplus": ["CapitalSurplus"],
+            "CapitalStock": ["CapitalStock"],
+            "AccumulatedDepreciation": ["AccumulatedDepreciation"],
+            "AccumulatedAmortization": ["AccumulatedAmortization"],
+            # Cash Flow Statement items
+            "OperatingCashFlow": ["OperatingCashFlow", "CashFlowFromOperations", "CFO", "NetCashProvidedByOperatingActivities"],
+            "InvestingCashFlow": ["InvestingCashFlow", "CashFlowFromInvestingActivities", "CFI", "NetCashProvidedByInvestingActivities"],
+            "FinancingCashFlow": ["FinancingCashFlow", "CashFlowFromFinancingActivities", "CFF", "NetCashProvidedByFinancingActivities"],
+            "NetIncreaseInCash": ["NetIncreaseInCash", "NetChangeInCash", "NetIncreaseInCashAndCashEquivalents"],
+            "CashAtEndOfPeriod": ["CashAtEndOfPeriod", "CashEndOfPeriod", "CashAndCashEquivalentsAtEndOfPeriod"],
+            "CashAtBeginningOfPeriod": ["CashAtBeginningOfPeriod", "CashBeginningOfPeriod", "CashAndCashEquivalentsAtBeginningOfPeriod"],
+            "Depreciation": ["Depreciation", "DepreciationExpense"],
+            "Amortization": ["Amortization", "AmortizationExpense"],
+            "DeferredTaxes": ["DeferredTaxes", "DeferredTax"],
+            "StockBasedCompensation": ["StockBasedCompensation", "ShareBasedCompensation"],
+            "ChangeInWorkingCapital": ["ChangeInWorkingCapital", "WorkingCapitalChanges"],
+            "AccountsReceivable": ["AccountsReceivable", "Receivables"],
+            "Inventory": ["Inventory", "Stock"],
+            "AccountsPayable": ["AccountsPayable", "Payables"],
+            "OtherOperatingActivities": ["OtherOperatingActivities", "OtherOperatingCashFlow"],
+            "CapitalExpenditures": ["CapitalExpenditures", "CapEx"],
+            "PurchaseOfPropertyPlantAndEquipment": ["PurchaseOfPropertyPlantAndEquipment", "PurchasesOfFixedAssets"],
+            "ProceedsFromSalesOfPropertyPlantAndEquipment": ["ProceedsFromSalesOfPropertyPlantAndEquipment", "SaleOfFixedAssets"],
+            "InvestmentInMarketableSecurities": ["InvestmentInMarketableSecurities", "PurchaseOfMarketableSecurities"],
+            "ProceedsFromSalesOfMarketableSecurities": ["ProceedsFromSalesOfMarketableSecurities", "SaleOfMarketableSecurities"],
+            "AcquisitionsNet": ["AcquisitionsNet", "PurchaseOfBusinessesNetOfCashAcquired"],
+            "DividendsReceived": ["DividendsReceived"],
+            "InterestReceived": ["InterestReceived"],
+            "OtherInvestingActivities": ["OtherInvestingActivities", "OtherInvestingCashFlow"],
+            "IssuanceOfDebt": ["IssuanceOfDebt", "ProceedsFromBorrowings"],
+            "RepaymentOfDebt": ["RepaymentOfDebt", "DebtRepayment"],
+            "IssuanceOfStock": ["IssuanceOfStock", "ProceedsFromIssuanceOfShares"],
+            "RepurchaseOfStock": ["RepurchaseOfStock", "ShareRepurchase"],
+            "PaymentOfDividends": ["PaymentOfDividends", "DividendsPaid"],
+            "OtherFinancingActivities": ["OtherFinancingActivities", "OtherFinancingCashFlow"],
+            "EffectOfExchangeRateChanges": ["EffectOfExchangeRateChanges", "ForeignCurrencyEffect"],
+        }
 
-    def getLineItemData(self, lineItem):
-        for ticker in self.tickers:
+
+    def getLineItemData(self, keyword):
+        lineItems = self.keyword_mapping.get(keyword, [keyword])
+        for ticker in self.tickers[:5]:
             company = Company(ticker)
-            data = company.getLineItemData(lineItem)
-            self.data_dict[ticker] = data
+            for lineItem in lineItems:
+                data = company.getLineItemData(lineItem)
+                if data:
+                    self.data_dict[ticker][lineItem] = data
         return self.data_dict
     
 
 tickers = getAllTickers()
 fs = FinancialStatement(tickers)
-data = fs.getLineItemData('FinanceLeaseInterestExpense')
-print(data)
+fs.getLineItemData('FinanceLeaseInterestExpense')
+fs.getLineItemData('Revenue')
+print(fs.data_dict)
 '''
 data_dict = defaultdict()
 tickerdf = getTickers("anthonytaylor@ufl.edu")
