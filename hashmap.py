@@ -1,3 +1,5 @@
+import pandas as pd
+
 class MyHashMap:
     def __init__(self):
         self.size = 16
@@ -37,28 +39,30 @@ class MyHashMap:
         for k, v in bucket:
             if k == key:
                 return v
-        raise KeyError(f"Key '{key}' not found.")
-
-    def __delitem__(self, key):
-        hash_code = self._hash(key)
-        bucket = self.buckets[hash_code]
-        for i, (k, v) in enumerate(bucket):
-            if k == key:
-                del bucket[i]
-                self.num_items -= 1
-                return
-        raise KeyError(f"Key '{key}' not found.")
+        raise KeyError(f"Key {key} not found")
 
     def __contains__(self, key):
         hash_code = self._hash(key)
         bucket = self.buckets[hash_code]
-        for k, v in bucket:
+        for k, _ in bucket:
             if k == key:
                 return True
         return False
 
-    def __str__(self):
+    def __repr__(self):
         items = []
         for bucket in self.buckets:
             items.extend(bucket)
-        return "{" + ", ".join(f"{k}: {v}" for k, v in items) + "}"
+        return f"MyHashMap({items})"
+    
+    def to_dataframe(self):
+        columns = []
+        values = []
+        for bucket in self.buckets:
+            for k, v in bucket:
+                start_date, end_date = k
+                columns.append((start_date, end_date))
+                values.append(v[0])
+
+        df = pd.DataFrame([values], columns=columns)
+        return df

@@ -5,6 +5,9 @@ class MyDataFrame:
         self.data = MyHashMap()
         self.columns = []
 
+    def __repr__(self):
+        return f"MyDataFrame(data={self.data}, columns={self.columns})"
+
     def __setitem__(self, column_name, values):
         if column_name in self.data:
             raise ValueError(f"Column '{column_name}' already exists.")
