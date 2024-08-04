@@ -40,6 +40,7 @@ class MyDataFrame:
             return len(self.data[self.columns[0]])
         return 0
     
+    '''
     def __repr__(self):
         # Prepare the data for tabulate
         headers = [str(column) for column in self.columns]
@@ -51,4 +52,5 @@ class MyDataFrame:
         # Use tabulate to create a table
         table = tabulate(rows, headers=headers, tablefmt="grid")
         return f"MyDataFrame:\n{table}"
+    '''
 

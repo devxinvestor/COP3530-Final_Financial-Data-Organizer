@@ -135,17 +135,27 @@ class Company:
         
     def formIncStateFromDict(self):
         colDict = MyHashMap()
-        item = 'CostOfGoodsSold'
-        # iterate through dictionary to create a condensed dictionary that feeds into dataframe
-        for i in range(len(self.incomeStatementDict[item])):
-            #create a tuple of date times to represent a range of dates for each value 
-             start = self.incomeStatementDict[item][i]['start']
-             end = self.incomeStatementDict[item][i]['end']
-             format = "%Y-%m-%d"
-             start = datetime.strptime(start,format)
-             end = datetime.strptime(end,format)
-             quarter = (start.date(), end.date())
-             colDict[quarter] = [self.incomeStatementDict[item][i]['val']]
+        items = ['CostOfGoodsSold', 'Revenue']  # List of items to include
+
+        # Iterate through each item in the list
+        for item in items:
+            # Iterate through dictionary to create a condensed dictionary that feeds into dataframe
+            for i in range(len(self.incomeStatementDict[item])):
+                # Create a tuple of date times to represent a range of dates for each value 
+                start = self.incomeStatementDict[item][i]['start']
+                end = self.incomeStatementDict[item][i]['end']
+                format = "%Y-%m-%d"
+                start = datetime.strptime(start, format)
+                end = datetime.strptime(end, format)
+                quarter = (start.date(), end.date())
+                
+                # Initialize the list if the key does not exist
+                if quarter not in colDict:
+                    colDict[quarter] = []
+                
+                # Append the value to the list for the corresponding quarter
+                colDict[quarter].append(self.incomeStatementDict[item][i]['val'])
+        
         sorted_columns, sorted_values = colDict.to_dataframe_data()
         df = MyDataFrame(sorted_columns, sorted_values)
         return df
