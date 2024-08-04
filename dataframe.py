@@ -1,5 +1,4 @@
 from hashmap import MyHashMap
-from tabulate import tabulate
 
 class MyDataFrame:
     def __init__(self, sorted_columns=None, sorted_values=None):
