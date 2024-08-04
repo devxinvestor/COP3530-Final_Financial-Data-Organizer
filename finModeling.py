@@ -28,7 +28,17 @@ def cleanDfDates(df):
                 del colNames[i+1]
             #if i+2 is not continous with i we likely have a 1 year data point and we must extract the current quarter data using the prevous quarters
             else
-                return 0    
+                #If there is not 3 prevous entries following the 10k data we will not be able recover current quarter data
+                if i >= 3:
+                    currentQuarterVal = df.iloc[0,i] - (df.iloc[0,i-3] + df.iloc[0,i-2] + df.iloc[0,i-1])
+                    df.iloc[0,i] = currentQuarterVal
+                    one_day = timedelta(days=1)
+                    currentQuarterDate = (colNames[i-1][1] + one_day, colNames[i][i])
+                    colNames[i] = currentQuarterDate
+                    #df.columns = [currentQuarterDate if j == i else name for j, name in enumerate(df.columns)]
+                else:
+                    del colNames[0:i]
+                    i = 0  
         #check last item to ensure 30 day range
     print(colNames[0])
     return df
