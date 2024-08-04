@@ -4,14 +4,10 @@ class MyDataFrame:
     def __init__(self, sorted_columns=None, sorted_values=None):
         self.data = MyHashMap()
         self.columns = []
-        
+
         if sorted_columns and sorted_values:
-            print(sorted_columns)
-            print(sorted_values)
-            if len(sorted_columns) != len(sorted_values):
-                raise ValueError("Columns and values must have the same length.")
             for column, value in zip(sorted_columns, sorted_values):
-                self.data[column] = value
+                self.__setitem__(column, value)
 
     def __repr__(self):
         return f"MyDataFrame(data={self.data}, columns={self.columns})"
@@ -42,3 +38,16 @@ class MyDataFrame:
         if self.columns:
             return len(self.data[self.columns[0]])
         return 0
+    
+    def __repr__(self):
+        header = " | ".join([str(column) for column in self.columns])
+        separator = "-" * len(header)
+        
+        rows = []
+        for i in range(self.row_count()):
+            row = " | ".join(str(self.data[column][i]) for column in self.columns)
+            rows.append(row)
+        
+        table = f"{header}\n{separator}\n" + "\n".join(rows)
+        return f"MyDataFrame:\n{table}"
+

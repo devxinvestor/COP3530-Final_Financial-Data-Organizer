@@ -18,7 +18,7 @@ class MyHashMap:
 
     def _re_hash(self):
         old_buckets = self.buckets
-        old_order = self.order
+        old_order = self.order[:]
         self.size *= 2
         self.buckets = [[] for _ in range(self.size)]
         self.num_items = 0
