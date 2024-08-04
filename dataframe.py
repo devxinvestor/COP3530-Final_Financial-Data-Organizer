@@ -1,8 +1,8 @@
-from dictionary import MyDictionary
+from hashmap import MyHashMap
 
 class MyDataFrame:
     def __init__(self):
-        self.data = MyDictionary()
+        self.data = MyHashMap()
         self.columns = []
 
     def __setitem__(self, column_name, values):
