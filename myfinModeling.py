@@ -146,8 +146,9 @@ class Company:
              end = datetime.strptime(end,format)
              quarter = (start.date(), end.date())
              colDict[quarter] = [self.incomeStatementDict[item][i]['val']]
-        incomeDf = colDict.to_dataframe()
-        return incomeDf
+        sorted_columns, sorted_values = colDict.to_dataframe_data()
+        df = MyDataFrame(sorted_columns, sorted_values)
+        return df
 
     def printIncState(self):
         pd.set_option('display.max_rows', None)

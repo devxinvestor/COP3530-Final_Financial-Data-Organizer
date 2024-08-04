@@ -1,24 +1,34 @@
-import pandas as pd
-
 class MyHashMap:
-    def __init__(self):
-        self.size = 16
+    def __init__(self, initial_data=None):
+        self.size = 10
         self.buckets = [[] for _ in range(self.size)]
         self.num_items = 0
         self.load_factor_threshold = 0.8
+        self.order = []
+
+        if initial_data is not None:
+            if isinstance(initial_data, dict):
+                for key, value in initial_data.items():
+                    self.__setitem__(key, value)
+            else:
+                raise TypeError("initial_data must be a dictionary")
 
     def _hash(self, key):
         return hash(key) % self.size
 
     def _re_hash(self):
         old_buckets = self.buckets
+        old_order = self.order
         self.size *= 2
         self.buckets = [[] for _ in range(self.size)]
         self.num_items = 0
+        self.order = []
 
-        for bucket in old_buckets:
-            for key, value in bucket:
-                self.__setitem__(key, value)
+        for key in old_order:
+            for bucket in old_buckets:
+                for k, v in bucket:
+                    if k == key:
+                        self.__setitem__(k, v)
 
     def __setitem__(self, key, value):
         if self.num_items / self.size > self.load_factor_threshold:
@@ -31,6 +41,7 @@ class MyHashMap:
                 bucket[i] = (key, value)
                 return
         bucket.append((key, value))
+        self.order.append(key)
         self.num_items += 1
 
     def __getitem__(self, key):
@@ -55,14 +66,27 @@ class MyHashMap:
             items.extend(bucket)
         return f"MyHashMap({items})"
     
-    def to_dataframe(self):
+    def remove(self, key):
+        hash_code = self._hash(key)
+        bucket = self.buckets[hash_code]
+        for i, (k, v) in enumerate(bucket):
+            if k == key:
+                del bucket[i]
+                self.num_items -= 1
+                self.order.remove(key)
+                return
+        raise KeyError(f"Key {key} not found")
+
+    def to_dataframe_data(self):
         columns = []
         values = []
-        for bucket in self.buckets:
+        for key in self.order:
+            hash_code = self._hash(key)
+            bucket = self.buckets[hash_code]
             for k, v in bucket:
-                start_date, end_date = k
-                columns.append((start_date, end_date))
-                values.append(v[0])
-
-        df = pd.DataFrame([values], columns=columns)
-        return df
+                if k == key:
+                    columns.append(key)
+                    values.append(v)
+                    break
+        
+        return columns, values

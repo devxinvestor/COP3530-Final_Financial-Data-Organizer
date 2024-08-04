@@ -1,9 +1,17 @@
 from hashmap import MyHashMap
 
 class MyDataFrame:
-    def __init__(self):
+    def __init__(self, sorted_columns=None, sorted_values=None):
         self.data = MyHashMap()
         self.columns = []
+        
+        if sorted_columns and sorted_values:
+            print(sorted_columns)
+            print(sorted_values)
+            if len(sorted_columns) != len(sorted_values):
+                raise ValueError("Columns and values must have the same length.")
+            for column, value in zip(sorted_columns, sorted_values):
+                self.data[column] = value
 
     def __repr__(self):
         return f"MyDataFrame(data={self.data}, columns={self.columns})"
@@ -34,23 +42,3 @@ class MyDataFrame:
         if self.columns:
             return len(self.data[self.columns[0]])
         return 0
-
-    def __str__(self):
-        return self._format_as_table()
-
-    def __repr__(self):
-        return self._format_as_table()
-
-    def _format_as_table(self):
-        if not self.columns:
-            return "DataFrame is empty."
-        
-        header = " | ".join(self.columns)
-        separator = "-" * len(header)
-        rows = []
-
-        for i in range(self.row_count()):
-            row = self.get_row(i)
-            rows.append(" | ".join(map(str, row)))
-
-        return f"{header}\n{separator}\n" + "\n".join(rows)
