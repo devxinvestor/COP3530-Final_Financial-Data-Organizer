@@ -19,7 +19,8 @@ def cleanDfDates(df):
          del colNames[0]
          realRange = abs(colNames[0][1]-colNames[0][0])
     #Iterate through all dates to enure one after the other format 
-    for i in range(colNames.len() - 1):
+    i = 0     
+    while i < len(colNames)-1:
          dayRange = abs(colNames[i+1][0]-colNames[i][1])
          if dayRange > difTolerance:
             #check if column i+2 is continous with i, if so delete i+1, we likely have redudant info
@@ -27,7 +28,7 @@ def cleanDfDates(df):
             if dayRange < difTolerance:
                 del colNames[i+1]
             #if i+2 is not continous with i we likely have a 1 year data point and we must extract the current quarter data using the prevous quarters
-            else
+            else:
                 #redudant data is often missing second date, this if statement filters it out to avoid error
                 if len(colNames[i+1]) == 1:
                     del colNames[i+1]
@@ -36,14 +37,14 @@ def cleanDfDates(df):
                     currentQuarterVal = df.iloc[0,i+1] - (df.iloc[0,i] + df.iloc[0,i-2] + df.iloc[0,i-1])
                     df.iloc[0,i+1] = currentQuarterVal
                     one_day = timedelta(days=1)
-                    currentQuarterDate = (colNames[i][1] + one_day, colNames[i+1][i])
+                    currentQuarterDate = (colNames[i][1] + one_day, colNames[i+1][1])
                     colNames[i+1] = currentQuarterDate
                     df.columns = [currentQuarterDate if j == (i+1) else name for j, name in enumerate(df.columns)]
                 else:
                     del colNames[0:i+1]
                     i = 0
         #check last item to ensure 30 day range
-    print(colNames[0])
+         i = i +1         
     return df
 
 def getTickers(email):
