@@ -1,4 +1,5 @@
 from hashmap import MyHashMap
+from tabulate import tabulate
 
 class MyDataFrame:
     def __init__(self, sorted_columns=None, sorted_values=None):
@@ -40,14 +41,14 @@ class MyDataFrame:
         return 0
     
     def __repr__(self):
-        header = " | ".join([str(column) for column in self.columns])
-        separator = "-" * len(header)
-        
+        # Prepare the data for tabulate
+        headers = [str(column) for column in self.columns]
         rows = []
         for i in range(self.row_count()):
-            row = " | ".join(str(self.data[column][i]) for column in self.columns)
+            row = [self.data[column][i] for column in self.columns]
             rows.append(row)
         
-        table = f"{header}\n{separator}\n" + "\n".join(rows)
+        # Use tabulate to create a table
+        table = tabulate(rows, headers=headers, tablefmt="grid")
         return f"MyDataFrame:\n{table}"
 
