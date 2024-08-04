@@ -13,25 +13,80 @@ def cleanDfDates(df):
     difTolerance = timedelta(days=difTolerance)
     one_day = timedelta(days=1)
     #check if first range is around 3 months
-    quarterRange = 140
+    quarterRange = 120
     threeQuarterRange = 260
     threeQuarterRange = timedelta(days=threeQuarterRange)
     yearRange = 350
     yearRange = timedelta(days=yearRange)
     quarterRange = timedelta(days=quarterRange)
     realRange = abs(colNames[0][1]-colNames[0][0])
+    '''
     while realRange > quarterRange:
          print(colNames[0])
          print("Some") 
          del colNames[0]
          realRange = abs(colNames[0][1]-colNames[0][0])
     #Iterate through all dates to ensure one after the other format 
+    '''
     i = 0     
     while i < len(colNames)-1:
          dayRange = abs(colNames[i+1][0]-colNames[i][1])
-         realRangeNextCol = abs(colNames[i+1][1]-colNames[i+1][0])
+         realRange = abs(colNames[i][1]-colNames[i][0])
+         #column is 6 month period
+         if ((realRange > quarterRange) and (realRange < threeQuarterRange)):
+             #redudant 6 month
+             print("Here at index: ", i, colNames[i][0])
+             if i > 0:
+                 prevRange = abs(colNames[i-1][1]-colNames[i-1][0])
+                 nextRange = abs(colNames[i+1][1]-colNames[i+1][0])
+                 if (prevRange < quarterRange) and (nextRange < quarterRange):
+                     if (abs(colNames[i-1][1]-colNames[i+1][0]) < dayRange):
+                         del colNames[i]
+                         i = i - 1
+             #If the end period of the next column match up, use data to create missing quarter
+             elif colNames[i][1] == colNames[i+1][1]:
+                currentQuarterVal = df.iloc[0,i] - df.iloc[0,i+1]
+                df.iloc[0,i] = currentQuarterVal
+                currentQuarterDate = (colNames[i][0], colNames[i+1][0] - one_day)
+                df.rename(columns={colNames[i]: currentQuarterDate}, inplace=True)
+                colNames[i] = currentQuarterDate
+         #column is 9 month period
+         elif ((realRange > threeQuarterRange) and (realRange < yearRange)):
+             #If the end period of the next column match up, use data to create missing quarter
+             if i == 0:
+                 del colNames[0:i]
+                 i=-1
+             elif abs(colNames[i+1][0]-colNames[i-1][1]) < dayRange:
+                 del colNames[i]
+             elif colNames[i][1] == colNames[i+1][1]:
+                if i >= 1:
+                    currentQuarterVal = df.iloc[0,i] - (df.iloc[0,i-1] + df.iloc[0,i+1])
+                    df.iloc[0,i] = currentQuarterVal
+                    currentQuarterDate = (colNames[i][0], colNames[i+1][0] - one_day)
+                    df.rename(columns={colNames[i]: currentQuarterDate}, inplace=True)
+                    colNames[i] = currentQuarterDate
+                else:
+                    del colNames[0:i]
+                    i=-1
+         #column is 1 year period
+         elif (realRange > yearRange):
+             #If the end periods of the next 2 columns match up, use data to create missing quarter
+             if i < 3:
+                 del colNames[i]
+                 i=-1
+             elif dayRange < difTolerance:
+                if i >= 3:
+                    currentQuarterVal = df.iloc[0,i] - (df.iloc[0,i-1] + df.iloc[0,i-2] + df.iloc[0,i-3])
+                    df.iloc[0,i] = currentQuarterVal
+                    currentQuarterDate = (colNames[i-1][1] + one_day, colNames[i][1])
+                    df.rename(columns={colNames[i]: currentQuarterDate}, inplace=True)
+                    colNames[i] = currentQuarterDate
+                else:
+                    del colNames[0:i]
+                    i=-1
          #current column doesnt match next column sequencally 
-         if dayRange > difTolerance:
+         '''           
+         elif dayRange > difTolerance:
             #check if column i+2 is continous with i, if so delete i+1, we likely have redudant info
             dayRangeNext = abs(colNames[i+2][0]-colNames[i][1])
             if dayRangeNext < difTolerance:
@@ -52,48 +107,11 @@ def cleanDfDates(df):
                 else:
                     del colNames[0:i+1]
                     i = 0
-         #Next column is 6 month period
-         if ((realRangeNextCol > quarterRange) and (realRangeNextCol < threeQuarterRange)):
-             print("Here at index: ", i, colNames[i])
-             #If the end periods of the next 2 columns match up, use data to create missing quarter
-             if colNames[i+1][1] == colNames[i+2][1]:
-                currentQuarterVal = df.iloc[0,i+1] - df.iloc[0,i]
-                df.iloc[0,i+1] = currentQuarterVal
-                currentQuarterDate = (colNames[i+1][0], colNames[i+2][0] - one_day)
-                #colNames[i+1] = currentQuarterDate
-                #df.columns = [currentQuarterDate if j == (i+1) else name for j, name in enumerate(df.columns)]
-         #Next column is 9 month period
-         if ((realRangeNextCol > threeQuarterRange) and (realRangeNextCol < yearRange)):
-             print("Here at index: ", i, colNames[i])
-             #If the end periods of the next 2 columns match up, use data to create missing quarter
-             if colNames[i+1][1] == colNames[i+2][1]:
-                if i >= 1:
-                    currentQuarterVal = df.iloc[0,i+1] - (df.iloc[0,i] + df.iloc[0,i-1])
-                    df.iloc[0,i+1] = currentQuarterVal
-                    currentQuarterDate = (colNames[i+1][0], colNames[i+2][0] - one_day)
-                    #colNames[i+1] = currentQuarterDate
-                    #df.columns = [currentQuarterDate if j == (i+1) else name for j, name in enumerate(df.columns)]
-                else:
-                    del colNames[0:i+1]
-                    i=0
-         #Next column is 1 year period
-         if (realRangeNextCol > yearRange):
-             #If the end periods of the next 2 columns match up, use data to create missing quarter
-             if colNames[i+1][1] == colNames[i+2][1]:
-                if i >= 1:
-                    currentQuarterVal = df.iloc[0,i+1] - (df.iloc[0,i] + df.iloc[0,i-1] + df.iloc[0,i-2])
-                    df.iloc[0,i+1] = currentQuarterVal
-                    currentQuarterDate = (colNames[i+1][0], colNames[i+2][0] - one_day)
-                    #colNames[i+1] = currentQuarterDate
-                    #df.columns = [currentQuarterDate if j == (i+1) else name for j, name in enumerate(df.columns)]
-                else:
-                    del colNames[0:i+1]
-                    i=0
-    
+         '''
         #check last item to ensure 30 day range
-         i = i +1         
-    return df[colNames]
-
+         i = i +1 
+    print(colNames)
+    return df[colNames[14:-14]]
 def getTickers(email):
     """
     This function retrieves all the tickers on the SEC website and returns them in a dataframe
