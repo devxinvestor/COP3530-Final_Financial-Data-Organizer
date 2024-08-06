@@ -1,19 +1,144 @@
+
 import requests
 import pandas as pd
-from collections import defaultdict
+import re
+import time
+from datetime import datetime, timedelta
 
+tickerTime = 0
 
+def periodRangeF(colDate):
+    return abs(colDate[1]-colDate[0])
+
+def cleanDfDates(df):
+    df.columns = df.columns.tolist()
+    #Set day tolerance from one quarter to next
+    difTolerance = 3
+    difTolerance = timedelta(days=difTolerance)
+    one_day = timedelta(days=1)
+    #Set quarter ranges
+    quarterRange = 100
+    quarterRange = timedelta(days=quarterRange)
+    threeQuarterRange = 260
+    threeQuarterRange = timedelta(days=threeQuarterRange)
+    yearRange = 350
+    yearRange = timedelta(days=yearRange)
+    
+    #Iterate through all dates to ensure one after the other format 
+    i = 0     
+    while i < len(df.columns):
+         periodRange = periodRangeF(df.columns[i]) 
+         
+         if (i < len(df.columns)-1):
+             nextDateDiff = abs(df.columns[i+1][0]-df.columns[i][1])
+         else:
+             nextDateDiff = difTolerance + one_day
+         
+         #column is 1 year period
+         if (periodRange > yearRange):
+             if (i < 3) | (i == len(df.columns)-1):
+                 df = df.drop(df.columns[0:i+1],axis=1)
+                 i=-1
+             #redudant year col
+             elif (abs(df.columns[i-1][1]-df.columns[i+1][0]) < nextDateDiff):
+                 df = df.drop(df.columns[i],axis=1)
+                 i = i - 1    
+             #If the end period of the next column match up, use data to create missing quarter
+             elif nextDateDiff < difTolerance:
+                if i >= 3:
+                    index = df.columns.get_loc(df.columns[i])
+                    currentQuarterVal = df.iloc[0,index] - (df.iloc[0,index-1] + df.iloc[0,index-2] + df.iloc[0,index-3])
+                    df.iloc[0,i] = currentQuarterVal
+                    currentQuarterDate = (df.columns[i-1][1] + one_day, df.columns[i][1])
+                    df = df.rename(columns={df.columns[i]: currentQuarterDate})
+                else:
+                    df = df.drop(df.columns[0:i+1],axis=1)
+                    i=-1
+                    
+         #column is 9 month period
+         elif ((periodRange > threeQuarterRange) and (periodRange < yearRange)):
+             #If the end period of the next column match up, use data to create missing quarter
+             if i == 0:
+                 df = df.drop(df.columns[i],axis=1)
+                 i=-1
+             elif abs(df.columns[i+1][0]-df.columns[i-1][1]) < nextDateDiff:
+                 df = df.drop(df.columns[i],axis=1)
+             elif df.columns[i][1] == df.columns[i+1][1]:
+                if i >= 1:
+                    index = df.columns.get_loc(df.columns[i])
+                    currentQuarterVal = df.iloc[0,index] - (df.iloc[0,index-1] + df.iloc[0,index+1])
+                    df.iloc[0,i] = currentQuarterVal
+                    currentQuarterDate = (df.columns[i][0], df.columns[i+1][0] - one_day)
+                    df = df.rename(columns={df.columns[i]: currentQuarterDate})
+                else:
+                    df = df.drop(df.columns[i],axis=1)
+                    i=-1
+                    
+         #column is 6 month period
+         elif ((periodRange > quarterRange) and (periodRange < threeQuarterRange)):
+             #redudant 6 month
+             if i > 0:
+                 prevRange = abs(df.columns[i-1][1]-df.columns[i-1][0])
+                 nextRange = abs(df.columns[i+1][1]-df.columns[i+1][0])
+                 if (prevRange < quarterRange) and (nextRange < quarterRange):
+                     if (abs(df.columns[i-1][1]-df.columns[i+1][0]) < nextDateDiff):
+                         df = df.drop(df.columns[i],axis=1)
+                         i = i - 1
+             #If the end period of the next column match up, use data to create missing quarter
+             elif df.columns[i][1] == df.columns[i+1][1]:
+                index = df.columns.get_loc(df.columns[i])
+                currentQuarterVal = df.iloc[0,index] - df.iloc[0,index+1]
+                df.iloc[0,i] = currentQuarterVal
+                currentQuarterDate = (df.columns[i][0], df.columns[i+1][0] - one_day)
+                df = df.rename(columns={df.columns[i]: currentQuarterDate})
+         #current column doesnt match next column sequencally 
+         '''           
+         elif dayRange > difTolerance:
+            #check if column i+2 is continous with i, if so delete i+1, we likely have redudant info
+            dayRangeNext = abs(colNames[i+2][0]-colNames[i][1])
+            if dayRangeNext < difTolerance:
+                print("Here to delete: ",colNames[i+1])
+                del colNames[i+1]
+            #if i+2 is not continous with i we likely have a 1 or 6 month year data point and we must extract the current quarter data using the prevous quarters
+            else:
+                #redudant data is often missing second date, this if statement filters it out to avoid error
+                if len(colNames[i+1]) == 1:
+                    del colNames[i+1]
+                #If there is not 3 prevous entries following the 10k data we will not be able recover current quarter data
+                elif i >= 3:
+                    currentQuarterVal = df.iloc[0,i+1] - (df.iloc[0,i] + df.iloc[0,i-1] + df.iloc[0,i-2])
+                    df.iloc[0,i+1] = currentQuarterVal
+                    currentQuarterDate = (colNames[i][1] + one_day, colNames[i+1][1])
+                    #colNames[i+1] = currentQuarterDate
+                    #df.columns = [currentQuarterDate if j == (i+1) else name for j, name in enumerate(df.columns)]
+                else:
+                    del colNames[0:i+1]
+                    i = 0
+         '''
+        #check last item to ensure 30 day range
+         i = i + 1
+    return df
+
+def mergeDf(df1, df2):
+    matching_columns = set(df1.columns).intersection(set(df2.columns))
+    df1_filtered = df1[list(matching_columns)]
+    df2_filtered = df2[list(matching_columns)]
+    merged_df = pd.concat([df1_filtered, df2_filtered], ignore_index=True)
+    return merged_df
 
 def getTickers(email):
     """
     This function retrieves all the tickers on the SEC website and returns them in a dataframe
     """
+    
     headers = {'User-Agent': f"{email}"}
+    startTime = time.time()
     companyTickers = requests.get(
         "https://www.sec.gov/files/company_tickers.json",
         headers=headers
         )
-
+    endTime = time.time()
+    tickerTime = endTime - startTime
     tickerDict = companyTickers.json()
     tickerDf = pd.DataFrame(index = range(len(tickerDict)), columns = ["CIK", "Ticker", "Name"])
     for i in range(len(tickerDict)): 
@@ -21,9 +146,6 @@ def getTickers(email):
         tickerDf.iloc[i, 1] = tickerDict[str(i)]['ticker']
         tickerDf.iloc[i, 2] = tickerDict[str(i)]['title']
     return tickerDf
-
-def getAllTickers():
-    return list(getTickers("anthonytaylor@ufl.edu")['Ticker'])
 
 class Company:
     
@@ -33,8 +155,9 @@ class Company:
     def __init__(self, ticker):
         self.ticker = ticker
         self.cik = self.findCik()
-        self.companyFacts = self.findCompanyFacts()
-        self.companyDataFrame = pd.DataFrame()
+        self.rawCompanyData = self.findRawCompanyData()
+        self.incomeStatementDict = self.rawDataToIncomeStatementDict()
+        self.incomeStatement = self.formIncStateFromDict()
 
     def findCik(self):
         cikRow = self.tickerDf[self.tickerDf['Ticker'] == self.ticker]
@@ -44,177 +167,284 @@ class Company:
     def getCik(self):
         return self.cik 
     
-    def findCompanyFacts(self):
-        try:
-            response = requests.get(
-                f'https://data.sec.gov/api/xbrl/companyfacts/CIK{self.cik}.json',
-                headers={'User-Agent': self.email}
-            )
-            response.raise_for_status()  # Check if the request was successful
-            if response.content:  # Check if the response is not empty
-                companyFacts = response.json()
-                return companyFacts
-            else:
-                return None
-        except requests.exceptions.RequestException as e:
-            return None
-    
-    def getLineItemData(self, lineItem):
-        if self.companyFacts:
-            try:
-                return self.companyFacts['facts']['us-gaap'][lineItem]['units']['USD']
-            except KeyError as e:
-                return None
+    def findRawCompanyData(self):
+        rawCompanyData = requests.get(
+            f'https://data.sec.gov/api/xbrl/companyfacts/CIK{self.cik}.json',
+            headers={'User-Agent': self.email})
+        rawCompanyData = rawCompanyData.json()
+        if rawCompanyData:
+            return rawCompanyData['facts']['us-gaap']
         else:
-            return None
+            return 0
+    
+    def printRawCompanyDataKeys(self):
+        print(self.rawCompanyData.keys())
         
-    def getLineItemDataPoint(self, lineItem, quarter):
-        data = self.getLineItemData(lineItem)
-        return data.get(quarter, None)
+    def searchRawCompanyDataKeys(self, keyword):
+        matchList = []
+        keyword = re.compile(keyword)
+        for key in self.rawCompanyData.keys():
+            if re.search(keyword, key, re.IGNORECASE):
+                matchList.append(key)
+        
+    def rawDataToIncomeStatementDict(self):
+        '''
+        use regex to form condensed dictionary of just income statement items 
+        '''
+        incomeStatementDict = {}
+        #Set revenue keywords useing re package
+        #Add back - r"[Ss]ales[Rr]evenue[Nn]et"
+        revenueKeys = [r"[Rr]evenues", r"[Ss]ales[Rr]evenue[Nn]et", r"SalesRevenueServicesGross"]
+        revenueKeys = [re.compile(key) for key in revenueKeys]
+        #Search each possible keyWord with each item in the data until match is found
+        dataSizes = {key: 0 for key in revenueKeys}
+        breakLoop = False
+        reloopForBestData = False
+        for keyWord in revenueKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['Revenue'] = self.rawCompanyData[key]['units']['USD']
+                    endDate = incomeStatementDict['Revenue'][-1]['end']
+                    format = "%Y-%m-%d"
+                    endDate = datetime.strptime(endDate,format)
+                    if(endDate.year == 2024):
+                        breakLoop = True
+                    break
+            if breakLoop:
+                breakLoop = False
+                break
+        #Not ready yet
+        '''    
+        while not reloopForBestData:
+            for keyWord in revenueKeys:
+                for key in self.rawCompanyData.keys():
+                    if keyWord.search(key):
+                        incomeStatementDict['Revenue'] = self.rawCompanyData[key]['units']['USD']
+                        endDate = incomeStatementDict['Revenue'][-1]['end']
+                        format = "%Y-%m-%d"
+                        endDate = datetime.strptime(endDate,format)
+                        
+                        if reloopForBestData:
+                            maxSize = max(dataSizes.values())
+                            if dataSizes[keyWord] == maxSize:
+                                breakLoop = True
+                        else:
+                            dataSizes[keyWord] = (len(incomeStatementDict['Revenue']))
+                         
+                        #if(endDate.year == 2024):
+                        breakLoop = True
+                        break
+                if breakLoop:
+                    breakLoop = False
+                    break
+                else:
+                    #reloopForBestData = True
+                    pass
+        '''    
+        #Do the same all the way dow nthe income statement
+        costKeys = [r"[Cc]ost[Oo]f[Gs]oods[Ss]old", r'[Cc]ost[Oo]f[Rr]evenue', r'CostOfGoodsAndServicesSold']
+        costKeys = [re.compile(key) for key in costKeys]
+        for keyWord in costKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['CostOfGoodsSold'] = self.rawCompanyData[key]['units']['USD']
+                    break
+            if breakLoop:
+                breakLoop = False
+                break
+        '''
+        GPKeys = [r"[Gg]ross[Pp]rofit.*"]
+        GPKeys = [re.compile(key) for key in GPKeys]
+        for keyWord in GPKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['GrossProfit'] = self.rawCompanyData[key]['units']['USD']
+                    break  
+            if breakLoop:
+                breakLoop = False
+                break
+        '''  
+        '''
+        OpExKeys = [r"[Oo]perating[Ee]xpenses", r"SellingGeneralAndAdministrativeExpense"]
+        OpExKeys = [re.compile(key) for key in OpExKeys]
+        for keyWord in OpExKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['OperatingExpenses'] = self.rawCompanyData[key]['units']['USD']
+                    break
+            if breakLoop:
+                breakLoop = False
+                break
+        '''    
+        # Calculatatable from GP and Op Ex
+        
+        EBITKeys = [r"[Ii]ncome[Ff]rom[Oo]perations*", r"IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments", r"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"]
+        EBITKeys = [re.compile(key) for key in EBITKeys]
+        for keyWord in EBITKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['EBIT'] = self.rawCompanyData[key]['units']['USD']
+                    break
+            if breakLoop:
+                breakLoop = False
+                break    
+        
+        #Try to get tax expense
+        '''
+        preTaxIncKeys = [r"[Ii]ncome[Bb]efore[Tt]axes*"]
+        PreTaxIncKeys = [re.compile(key) for key in preTaxIncKeys]
+        for keyWord in PreTaxIncKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['PreTaxIncome'] = self.rawCompanyData[key]['units']['USD']
+                    break
+            if breakLoop:
+                breakLoop = False
+                break
+         '''    
+        incomeKeys = [r"\b[Nn]et[Ii]ncome[Ll]oss"]
+        incomeKeys = [re.compile(key) for key in incomeKeys]
+        for keyWord in incomeKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['NetIncome'] = self.rawCompanyData[key]['units']['USD']
+                    break
+            if breakLoop:
+                breakLoop = False
+                break
+        incomeKeys = [r"[Ee]arnings[Pp]er[Ss]hare[Bb]asic"]
+        incomeKeys = [re.compile(key) for key in incomeKeys]
+        for keyWord in incomeKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['EPS'] = self.rawCompanyData[key]['units']['USD/shares']
+                    break
+            if breakLoop:
+                breakLoop = False
+                break
+        return incomeStatementDict
     
-    def getDataPoints(self, lineItem):
-        data_item = self.getLineItemData(lineItem)
-        self.companyDataFrame[lineItem] = data_item
+    def printIncomeStatementDictKeys(self):
+        print(self.incomeStatementDict.keys())
+        
+    def formIncStateFromDict(self):
+        if len(self.incomeStatementDict) == 5:
+            revDict = {}
+            item = ['Revenue', 'CostOfGoodsSold', 'EBIT', 'NetIncome', 'EPS']
+            lineItems = ['Revenue', 'CostOfGoodsSold', 'Gross Profit', 'Income From Operations', 'OperatingExpenses', 'NetIncome', 'EPS']
+            # iterate through dictionary to create a condensed dictionary that feeds into dataframe
+            for i in range(len(self.incomeStatementDict[item[0]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[0]][i]['start']
+                 end = self.incomeStatementDict[item[0]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 revDict[quarter] = [self.incomeStatementDict[item[0]][i]['val']]
+            revenueDf = pd.DataFrame(revDict)
+            revenueDf = cleanDfDates(revenueDf)
+            
+            cogDict = {}
+            for i in range(len(self.incomeStatementDict[item[1]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[1]][i]['start']
+                 end = self.incomeStatementDict[item[1]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 cogDict[quarter] = [self.incomeStatementDict[item[1]][i]['val']]
+            cogsDf = pd.DataFrame(cogDict)
+            cogsDf = cleanDfDates(cogsDf)
+            incomeDf = mergeDf(revenueDf,cogsDf)
+            
+            #create row for gross profit
+            difference = incomeDf.iloc[-2] - incomeDf.iloc[-1]
+            difference_df = pd.DataFrame(difference).T
+            incomeDf = pd.concat([incomeDf, difference_df], ignore_index=True)
+            
+            #create row for operating income
+            opInDict = {}
+            for i in range(len(self.incomeStatementDict[item[2]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[2]][i]['start']
+                 end = self.incomeStatementDict[item[2]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 opInDict[quarter] = [self.incomeStatementDict[item[2]][i]['val']]
+            opInDf = pd.DataFrame(opInDict)
+            opInDf = cleanDfDates(opInDf)
+            incomeDf = mergeDf(incomeDf,opInDf)
+            
+            #create row for income from op ex
+            difference = incomeDf.iloc[-2] - incomeDf.iloc[-1]
+            difference_df = pd.DataFrame(difference).T
+            incomeDf = pd.concat([incomeDf, difference_df], ignore_index=True)
+            
+            #create net income row
+            
+            netDict = {}
+            for i in range(len(self.incomeStatementDict[item[3]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[3]][i]['start']
+                 end = self.incomeStatementDict[item[3]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 netDict[quarter] = [self.incomeStatementDict[item[3]][i]['val']]
+            netIncomeDf = pd.DataFrame(netDict)
+            netIncomeDf = cleanDfDates(netIncomeDf)
+            incomeDf = mergeDf(incomeDf,netIncomeDf)
+            
+            '''
+            #create eps row
+            epsDict={}
+            for i in range(len(self.incomeStatementDict[item[4]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[4]][i]['start']
+                 end = self.incomeStatementDict[item[4]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 epsDict[quarter] = [round(self.incomeStatementDict[item[4]][i]['val'],2)]
+            epsDf = pd.DataFrame(epsDict)
+            epsDf = cleanDfDates(epsDf)
+            incomeDf = mergeDf(incomeDf,epsDf)
+            '''
+            
+            #add row names
+            incomeDf.index = lineItems[0:6]
+            return incomeDf
+        else:
+            return -1
 
-class FinancialStatement:
-    def __init__(self, tickers):
-        self.tickers = tickers
-        self.data_dict = defaultdict(dict)
-        self.keyword_mapping = {
-            # Income Statement items
-            "Revenue": ["Revenue", "Sales", "Turnover", "TopLine"],
-            "NetIncome": ["NetIncome", "NetEarnings", "NetProfit", "BottomLine"],
-            "OperatingIncome": ["OperatingIncome", "OperatingProfit", "EBIT"],
-            "GrossProfit": ["GrossProfit", "GrossIncome"],
-            "CostOfGoodsSold": ["CostOfGoodsSold", "COGS", "CostOfSales"],
-            "TotalRevenue": ["TotalRevenue", "TotalSales"],
-            "NetRevenue": ["NetRevenue", "NetSales"],
-            "GrossRevenue": ["GrossRevenue", "GrossSales"],
-            "InterestIncome": ["InterestIncome", "InterestRevenue"],
-            "InterestExpense": ["InterestExpense", "InterestCost"],
-            "IncomeTaxExpense": ["IncomeTaxExpense", "IncomeTaxes", "TaxExpense"],
-            "SellingGeneralAndAdministrative": ["SellingGeneralAndAdministrative", "SG&A", "GeneralAndAdministrative", "G&A"],
-            "ResearchAndDevelopment": ["ResearchAndDevelopment", "R&D", "ResearchExpense"],
-            "DepreciationAndAmortization": ["DepreciationAndAmortization", "D&A", "Depreciation", "Amortization"],
-            "OperatingExpenses": ["OperatingExpenses", "OpEx"],
-            "NonOperatingIncome": ["NonOperatingIncome", "NonOperatingRevenue"],
-            "NonOperatingExpenses": ["NonOperatingExpenses", "NonOperatingCost"],
-            "OtherIncome": ["OtherIncome", "MiscellaneousIncome"],
-            "OtherExpenses": ["OtherExpenses", "MiscellaneousExpenses"],
-            "ExtraordinaryItems": ["ExtraordinaryItems", "UnusualItems"],
-            "NetOperatingIncome": ["NetOperatingIncome", "NOI"],
-            "EarningsBeforeTax": ["EarningsBeforeTax", "EBT", "PreTaxEarnings"],
-            "EarningsBeforeInterestAndTax": ["EarningsBeforeInterestAndTax", "EBIT"],
-            "EarningsBeforeInterestTaxesDepreciationAndAmortization": ["EarningsBeforeInterestTaxesDepreciationAndAmortization", "EBITDA"],
-            "BasicEarningsPerShare": ["BasicEarningsPerShare", "BasicEPS"],
-            "DilutedEarningsPerShare": ["DilutedEarningsPerShare", "DilutedEPS"],
-            "ComprehensiveIncome": ["ComprehensiveIncome", "TotalComprehensiveIncome"],
-            "MinorityInterest": ["MinorityInterest", "NoncontrollingInterest"],
-            "OperatingMargin": ["OperatingMargin", "OperatingProfitMargin"],
-            "GrossMargin": ["GrossMargin", "GrossProfitMargin"],
-            "NetProfitMargin": ["NetProfitMargin", "NetIncomeMargin"],
-            "IncomeFromContinuingOperations": ["IncomeFromContinuingOperations", "OperatingIncomeContinuingOperations"],
-            "IncomeFromDiscontinuedOperations": ["IncomeFromDiscontinuedOperations", "OperatingIncomeDiscontinuedOperations"],
-            # Balance Sheet items
-            "TotalAssets": ["TotalAssets", "Assets"],
-            "CurrentAssets": ["CurrentAssets", "ShortTermAssets"],
-            "NonCurrentAssets": ["NonCurrentAssets", "LongTermAssets"],
-            "CashAndCashEquivalents": ["CashAndCashEquivalents", "Cash"],
-            "AccountsReceivable": ["AccountsReceivable", "Receivables"],
-            "Inventory": ["Inventory", "Stock"],
-            "PrepaidExpenses": ["PrepaidExpenses", "Prepayments"],
-            "PropertyPlantAndEquipment": ["PropertyPlantAndEquipment", "PP&E", "FixedAssets"],
-            "IntangibleAssets": ["IntangibleAssets", "Intangibles"],
-            "Goodwill": ["Goodwill"],
-            "DeferredTaxAssets": ["DeferredTaxAssets", "DeferredTaxes"],
-            "TotalLiabilities": ["TotalLiabilities", "Liabilities"],
-            "CurrentLiabilities": ["CurrentLiabilities", "ShortTermLiabilities"],
-            "NonCurrentLiabilities": ["NonCurrentLiabilities", "LongTermLiabilities"],
-            "AccountsPayable": ["AccountsPayable", "Payables"],
-            "ShortTermDebt": ["ShortTermDebt", "CurrentDebt"],
-            "LongTermDebt": ["LongTermDebt", "LT Debt"],
-            "AccruedLiabilities": ["AccruedLiabilities", "AccruedExpenses"],
-            "DeferredRevenue": ["DeferredRevenue", "UnearnedRevenue"],
-            "DeferredTaxLiabilities": ["DeferredTaxLiabilities", "DeferredTaxes"],
-            "OtherCurrentLiabilities": ["OtherCurrentLiabilities", "OtherSTLiabilities"],
-            "OtherNonCurrentLiabilities": ["OtherNonCurrentLiabilities", "OtherLTLiabilities"],
-            "TotalEquity": ["TotalEquity", "ShareholdersEquity", "Equity"],
-            "CommonStock": ["CommonStock", "ShareCapital"],
-            "RetainedEarnings": ["RetainedEarnings", "AccumulatedEarnings"],
-            "AdditionalPaidInCapital": ["AdditionalPaidInCapital", "APIC"],
-            "TreasuryStock": ["TreasuryStock", "TreasuryShares"],
-            "AccumulatedOtherComprehensiveIncome": ["AccumulatedOtherComprehensiveIncome", "AOCI"],
-            "MinorityInterest": ["MinorityInterest", "NoncontrollingInterest"],
-            "BookValuePerShare": ["BookValuePerShare", "BVPS"],
-            "WorkingCapital": ["WorkingCapital", "NetWorkingCapital"],
-            "NetAssets": ["NetAssets"],
-            "TotalDebt": ["TotalDebt"],
-            "CurrentPortionOfLongTermDebt": ["CurrentPortionOfLongTermDebt", "CurrentLTDebt"],
-            "Investments": ["Investments"],
-            "PreferredStock": ["PreferredStock"],
-            "CapitalSurplus": ["CapitalSurplus"],
-            "CapitalStock": ["CapitalStock"],
-            "AccumulatedDepreciation": ["AccumulatedDepreciation"],
-            "AccumulatedAmortization": ["AccumulatedAmortization"],
-            # Cash Flow Statement items
-            "OperatingCashFlow": ["OperatingCashFlow", "CashFlowFromOperations", "CFO", "NetCashProvidedByOperatingActivities"],
-            "InvestingCashFlow": ["InvestingCashFlow", "CashFlowFromInvestingActivities", "CFI", "NetCashProvidedByInvestingActivities"],
-            "FinancingCashFlow": ["FinancingCashFlow", "CashFlowFromFinancingActivities", "CFF", "NetCashProvidedByFinancingActivities"],
-            "NetIncreaseInCash": ["NetIncreaseInCash", "NetChangeInCash", "NetIncreaseInCashAndCashEquivalents"],
-            "CashAtEndOfPeriod": ["CashAtEndOfPeriod", "CashEndOfPeriod", "CashAndCashEquivalentsAtEndOfPeriod"],
-            "CashAtBeginningOfPeriod": ["CashAtBeginningOfPeriod", "CashBeginningOfPeriod", "CashAndCashEquivalentsAtBeginningOfPeriod"],
-            "Depreciation": ["Depreciation", "DepreciationExpense"],
-            "Amortization": ["Amortization", "AmortizationExpense"],
-            "DeferredTaxes": ["DeferredTaxes", "DeferredTax"],
-            "StockBasedCompensation": ["StockBasedCompensation", "ShareBasedCompensation"],
-            "ChangeInWorkingCapital": ["ChangeInWorkingCapital", "WorkingCapitalChanges"],
-            "AccountsReceivable": ["AccountsReceivable", "Receivables"],
-            "Inventory": ["Inventory", "Stock"],
-            "AccountsPayable": ["AccountsPayable", "Payables"],
-            "OtherOperatingActivities": ["OtherOperatingActivities", "OtherOperatingCashFlow"],
-            "CapitalExpenditures": ["CapitalExpenditures", "CapEx"],
-            "PurchaseOfPropertyPlantAndEquipment": ["PurchaseOfPropertyPlantAndEquipment", "PurchasesOfFixedAssets"],
-            "ProceedsFromSalesOfPropertyPlantAndEquipment": ["ProceedsFromSalesOfPropertyPlantAndEquipment", "SaleOfFixedAssets"],
-            "InvestmentInMarketableSecurities": ["InvestmentInMarketableSecurities", "PurchaseOfMarketableSecurities"],
-            "ProceedsFromSalesOfMarketableSecurities": ["ProceedsFromSalesOfMarketableSecurities", "SaleOfMarketableSecurities"],
-            "AcquisitionsNet": ["AcquisitionsNet", "PurchaseOfBusinessesNetOfCashAcquired"],
-            "DividendsReceived": ["DividendsReceived"],
-            "InterestReceived": ["InterestReceived"],
-            "OtherInvestingActivities": ["OtherInvestingActivities", "OtherInvestingCashFlow"],
-            "IssuanceOfDebt": ["IssuanceOfDebt", "ProceedsFromBorrowings"],
-            "RepaymentOfDebt": ["RepaymentOfDebt", "DebtRepayment"],
-            "IssuanceOfStock": ["IssuanceOfStock", "ProceedsFromIssuanceOfShares"],
-            "RepurchaseOfStock": ["RepurchaseOfStock", "ShareRepurchase"],
-            "PaymentOfDividends": ["PaymentOfDividends", "DividendsPaid"],
-            "OtherFinancingActivities": ["OtherFinancingActivities", "OtherFinancingCashFlow"],
-            "EffectOfExchangeRateChanges": ["EffectOfExchangeRateChanges", "ForeignCurrencyEffect"],
-        }
-
-
-    def getLineItemData(self, keyword):
-        lineItems = self.keyword_mapping.get(keyword, [keyword])
-        for ticker in self.tickers[:5]:
-            company = Company(ticker)
-            for lineItem in lineItems:
-                data = company.getLineItemData(lineItem)
-                if data:
-                    self.data_dict[ticker][lineItem] = data
-        return self.data_dict
+    def printIncState(self):
+        pd.set_option('display.max_columns', None)
+        print(self.incomeStatement)
+            
+   
+    
     
 
-tickers = getAllTickers()
-fs = FinancialStatement(tickers)
-fs.getLineItemData('FinanceLeaseInterestExpense')
-fs.getLineItemData('Revenue')
-print(fs.data_dict)
-'''
-data_dict = defaultdict()
-tickerdf = getTickers("anthonytaylor@ufl.edu")
-for tickers in tickerdf['Ticker'][1]:
-    company = Company(tickers)
-    data = company.getLineItemData('FinanceLeaseInterestExpense')
-    print(company.getAllImformation())
-'''
+
+
+
+
+# tsla = Company("TSLA")
+# tsla.printIncomeStatementDictKeys()
+pd.set_option('display.max_columns', None)
+        
+aapl = Company("KO")
+#aapl.printRawCompanyDataKeys()
+aapl.printIncomeStatementDictKeys()
+
+aapl.printIncState()
+
 #Keys of inital dictionary that conatins all data for one company
 #Output should look like ['cik', 'entityName', 'facts']
 #Facts contains all data and is a dictionary
@@ -238,9 +468,3 @@ for tickers in tickerdf['Ticker'][1]:
 #the first element of the list is the data relating to the oldest continuously stored data point of the line item
 #and each element after that should be the data relating to the line item 1 quarter later 
 #print(tsla.findCompanyFacts()['facts']['us-gaap']['AccountsAndNotesReceivableNet']['units']['USD'])
-
-
-
-
-
-
