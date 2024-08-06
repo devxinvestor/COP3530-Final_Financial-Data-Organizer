@@ -117,8 +117,18 @@ def cleanDfDates(df):
                     i = 0
          '''
         #check last item to ensure 30 day range
-         i = i +1 
-    return df[colNames]
+         i = i +1
+    return df[colNames].T.drop_duplicates().T
+
+def mergeDf(df1, df2):
+    columnNames = df1.columns
+    df2 = df2[columnNames]
+    df1.reset_index(drop=True, inplace=True)
+    df2.reset_index(drop=True, inplace=True)
+    df1.columns = pd.Index([f"{col}_1" if df1.columns.duplicated()[i] else col for i, col in enumerate(df1.columns)])
+    df2.columns = pd.Index([f"{col}_2" if df2.columns.duplicated()[i] else col for i, col in enumerate(df2.columns)])
+    merged_df = pd.concat([df1, df2], axis=0,ignore_index=True)
+    return merged_df
 
 def getTickers(email):
     """
@@ -212,6 +222,7 @@ class Company:
             if breakLoop:
                 breakLoop = False
                 break
+        '''
         GPKeys = [r"[Gg]ross[Pp]rofit.*"]
         GPKeys = [re.compile(key) for key in GPKeys]
         for keyWord in GPKeys:
@@ -222,6 +233,7 @@ class Company:
             if breakLoop:
                 breakLoop = False
                 break
+        '''    
         OpExKeys = [r"[Oo]perating[Ee]xpenses"]
         OpExKeys = [re.compile(key) for key in OpExKeys]
         for keyWord in OpExKeys:
@@ -287,33 +299,99 @@ class Company:
         print(self.incomeStatementDict['Revenue'])
         
     def formIncStateFromDict(self):
-        colDict = {}
-        item = ['Revenue', 'CostOfGoodsSold', 'NetIncome', 'EPS']
-        # iterate through dictionary to create a condensed dictionary that feeds into dataframe
-        for i in range(len(self.incomeStatementDict[item[0]])):
-            #create a tuple of date times to represent a range of dates for each value 
-             start = self.incomeStatementDict[item[0]][i]['start']
-             end = self.incomeStatementDict[item[0]][i]['end']
-             format = "%Y-%m-%d"
-             start = datetime.strptime(start,format)
-             end = datetime.strptime(end,format)
-             quarter = (start.date(), end.date())
-             colDict[quarter] = [self.incomeStatementDict[item[0]][i]['val']]
-        revenueDf = pd.DataFrame(colDict)
-        revenueDf = cleanDfDates(revenueDf)
-        '''
-        for i in range(len(self.incomeStatementDict[item[1]])):
-            #create a tuple of date times to represent a range of dates for each value 
-             start = self.incomeStatementDict[item[1]][i]['start']
-             end = self.incomeStatementDict[item[1]][i]['end']
-             format = "%Y-%m-%d"
-             start = datetime.strptime(start,format)
-             end = datetime.strptime(end,format)
-             quarter = (start.date(), end.date())
-             colDict[quarter] = [self.incomeStatementDict[item[1]][i]['val']]
-        '''
-        incomeDf = revenueDf
-        return incomeDf
+        if len(self.incomeStatementDict) == 5:
+            revDict = {}
+            item = ['Revenue', 'CostOfGoodsSold', 'OperatingExpenses', 'NetIncome', 'EPS']
+            lineItems = ['Revenue', 'CostOfGoodsSold', 'Gross Profit', 'OperatingExpenses', 'Income From Operations', 'NetIncome', 'EPS']
+            # iterate through dictionary to create a condensed dictionary that feeds into dataframe
+            for i in range(len(self.incomeStatementDict[item[0]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[0]][i]['start']
+                 end = self.incomeStatementDict[item[0]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 revDict[quarter] = [self.incomeStatementDict[item[0]][i]['val']]
+            revenueDf = pd.DataFrame(revDict)
+            revenueDf = cleanDfDates(revenueDf)
+            
+            cogDict = {}
+            for i in range(len(self.incomeStatementDict[item[1]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[1]][i]['start']
+                 end = self.incomeStatementDict[item[1]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 cogDict[quarter] = [self.incomeStatementDict[item[1]][i]['val']]
+            cogsDf = pd.DataFrame(cogDict)
+            cogsDf = cleanDfDates(cogsDf)
+            incomeDf = mergeDf(revenueDf,cogsDf)
+            
+            #create row for gross profit
+            difference = incomeDf.iloc[-2] - incomeDf.iloc[-1]
+            difference_df = pd.DataFrame(difference).T
+            incomeDf = pd.concat([incomeDf, difference_df], ignore_index=True)
+
+            #create row for operating expense
+            opexDict = {}
+            for i in range(len(self.incomeStatementDict[item[2]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[2]][i]['start']
+                 end = self.incomeStatementDict[item[2]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 opexDict[quarter] = [self.incomeStatementDict[item[2]][i]['val']]
+            opExDf = pd.DataFrame(opexDict)
+            opExDf = cleanDfDates(opExDf)
+            incomeDf = mergeDf(incomeDf,opExDf)
+            
+            #create row for income from op
+            difference = incomeDf.iloc[-2] - incomeDf.iloc[-1]
+            difference_df = pd.DataFrame(difference).T
+            incomeDf = pd.concat([incomeDf, difference_df], ignore_index=True)
+            
+            #create net income row
+            netDict = {}
+            for i in range(len(self.incomeStatementDict[item[3]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[3]][i]['start']
+                 end = self.incomeStatementDict[item[3]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 netDict[quarter] = [self.incomeStatementDict[item[3]][i]['val']]
+            netIncomeDf = pd.DataFrame(netDict)
+            netIncomeDf = cleanDfDates(netIncomeDf)
+            incomeDf = mergeDf(incomeDf,netIncomeDf)
+            
+            
+            #create eps row
+            epsDict={}
+            for i in range(len(self.incomeStatementDict[item[4]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[4]][i]['start']
+                 end = self.incomeStatementDict[item[4]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 epsDict[quarter] = [round(self.incomeStatementDict[item[4]][i]['val'],2)]
+            epsDf = pd.DataFrame(epsDict)
+            epsDf = cleanDfDates(epsDf)
+            incomeDf = mergeDf(incomeDf,epsDf)
+            
+            
+            #add row names
+            #incomeDf.index = lineItems[0]
+            return incomeDf
+        else:
+            return -1
 
     def printIncState(self):
         pd.set_option('display.max_columns', None)
@@ -332,7 +410,7 @@ class Company:
 # tsla.printIncomeStatementDictKeys()
 pd.set_option('display.max_columns', None)
         
-aapl = Company("WMT")
+aapl = Company("AAPL")
 aapl.printIncState()
 aapl.printIncomeStatementDictKeys()
 aapl.printRawCompanyDataKeys()
@@ -360,6 +438,7 @@ aapl.printRawCompanyDataKeys()
 #the first element of the list is the data relating to the oldest continuously stored data point of the line item
 #and each element after that should be the data relating to the line item 1 quarter later 
 #print(tsla.findCompanyFacts()['facts']['us-gaap']['AccountsAndNotesReceivableNet']['units']['USD'])
+
 
 
 
