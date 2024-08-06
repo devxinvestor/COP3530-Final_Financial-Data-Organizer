@@ -120,13 +120,10 @@ def cleanDfDates(df):
     return df
 
 def mergeDf(df1, df2):
-    columnNames = df1.columns
-    df2 = df2[columnNames]
-    df1.reset_index(drop=True, inplace=True)
-    df2.reset_index(drop=True, inplace=True)
-    df1.columns = pd.Index([f"{col}_1" if df1.columns.duplicated()[i] else col for i, col in enumerate(df1.columns)])
-    df2.columns = pd.Index([f"{col}_2" if df2.columns.duplicated()[i] else col for i, col in enumerate(df2.columns)])
-    merged_df = pd.concat([df1, df2], axis=0,ignore_index=True)
+    matching_columns = set(df1.columns).intersection(set(df2.columns))
+    df1_filtered = df1[list(matching_columns)]
+    df2_filtered = df2[list(matching_columns)]
+    merged_df = pd.concat([df1_filtered, df2_filtered], ignore_index=True)
     return merged_df
 
 def getTickers(email):
@@ -160,7 +157,7 @@ class Company:
         self.cik = self.findCik()
         self.rawCompanyData = self.findRawCompanyData()
         self.incomeStatementDict = self.rawDataToIncomeStatementDict()
-        #self.incomeStatement = self.formIncStateFromDict()
+        self.incomeStatement = self.formIncStateFromDict()
 
     def findCik(self):
         cikRow = self.tickerDf[self.tickerDf['Ticker'] == self.ticker]
@@ -203,6 +200,21 @@ class Company:
         dataSizes = {key: 0 for key in revenueKeys}
         breakLoop = False
         reloopForBestData = False
+        for keyWord in revenueKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['Revenue'] = self.rawCompanyData[key]['units']['USD']
+                    endDate = incomeStatementDict['Revenue'][-1]['end']
+                    format = "%Y-%m-%d"
+                    endDate = datetime.strptime(endDate,format)
+                    if(endDate.year == 2024):
+                        breakLoop = True
+                    break
+            if breakLoop:
+                breakLoop = False
+                break
+        #Not ready yet
+        '''    
         while not reloopForBestData:
             for keyWord in revenueKeys:
                 for key in self.rawCompanyData.keys():
@@ -211,14 +223,14 @@ class Company:
                         endDate = incomeStatementDict['Revenue'][-1]['end']
                         format = "%Y-%m-%d"
                         endDate = datetime.strptime(endDate,format)
-                        '''
+                        
                         if reloopForBestData:
                             maxSize = max(dataSizes.values())
                             if dataSizes[keyWord] == maxSize:
                                 breakLoop = True
                         else:
                             dataSizes[keyWord] = (len(incomeStatementDict['Revenue']))
-                         '''
+                         
                         #if(endDate.year == 2024):
                         breakLoop = True
                         break
@@ -228,6 +240,7 @@ class Company:
                 else:
                     #reloopForBestData = True
                     pass
+        '''    
         #Do the same all the way dow nthe income statement
         costKeys = [r"[Cc]ost[Oo]f[Gs]oods[Ss]old", r'[Cc]ost[Oo]f[Rr]evenue', r'CostOfGoodsAndServicesSold']
         costKeys = [re.compile(key) for key in costKeys]
@@ -265,7 +278,7 @@ class Company:
         '''    
         # Calculatatable from GP and Op Ex
         
-        EBITKeys = [r"[Ii]ncome[Ff]rom[Oo]perations*", r"IncomeLossFromContinuingOperations.+"]
+        EBITKeys = [r"[Ii]ncome[Ff]rom[Oo]perations*", r"IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments", r"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"]
         EBITKeys = [re.compile(key) for key in EBITKeys]
         for keyWord in EBITKeys:
             for key in self.rawCompanyData.keys():
@@ -318,7 +331,7 @@ class Company:
         if len(self.incomeStatementDict) == 5:
             revDict = {}
             item = ['Revenue', 'CostOfGoodsSold', 'EBIT', 'NetIncome', 'EPS']
-            lineItems = ['Revenue', 'CostOfGoodsSold', 'Gross Profit', 'OperatingExpenses', 'Income From Operations', 'NetIncome', 'EPS']
+            lineItems = ['Revenue', 'CostOfGoodsSold', 'Gross Profit', 'Income From Operations', 'OperatingExpenses', 'NetIncome', 'EPS']
             # iterate through dictionary to create a condensed dictionary that feeds into dataframe
             for i in range(len(self.incomeStatementDict[item[0]])):
                 #create a tuple of date times to represent a range of dates for each value 
@@ -351,8 +364,8 @@ class Company:
             difference_df = pd.DataFrame(difference).T
             incomeDf = pd.concat([incomeDf, difference_df], ignore_index=True)
             
-            #create row for operating expense
-            opexDict = {}
+            #create row for operating income
+            opInDict = {}
             for i in range(len(self.incomeStatementDict[item[2]])):
                 #create a tuple of date times to represent a range of dates for each value 
                  start = self.incomeStatementDict[item[2]][i]['start']
@@ -361,17 +374,18 @@ class Company:
                  start = datetime.strptime(start,format)
                  end = datetime.strptime(end,format)
                  quarter = (start.date(), end.date())
-                 opexDict[quarter] = [self.incomeStatementDict[item[2]][i]['val']]
-            opExDf = pd.DataFrame(opexDict)
-            opExDf = cleanDfDates(opExDf)
-            incomeDf = mergeDf(incomeDf,opExDf)
+                 opInDict[quarter] = [self.incomeStatementDict[item[2]][i]['val']]
+            opInDf = pd.DataFrame(opInDict)
+            opInDf = cleanDfDates(opInDf)
+            incomeDf = mergeDf(incomeDf,opInDf)
             
-            #create row for income from op
+            #create row for income from op ex
             difference = incomeDf.iloc[-2] - incomeDf.iloc[-1]
             difference_df = pd.DataFrame(difference).T
             incomeDf = pd.concat([incomeDf, difference_df], ignore_index=True)
             
             #create net income row
+            
             netDict = {}
             for i in range(len(self.incomeStatementDict[item[3]])):
                 #create a tuple of date times to represent a range of dates for each value 
@@ -405,8 +419,6 @@ class Company:
             
             #add row names
             incomeDf.index = lineItems[0:6]
-            
-            incomeDf = revenueDf
             return incomeDf
         else:
             return -1
@@ -427,11 +439,11 @@ class Company:
 # tsla.printIncomeStatementDictKeys()
 pd.set_option('display.max_columns', None)
         
-aapl = Company("TSLA")
-aapl.printRawCompanyDataKeys()
+aapl = Company("KO")
+#aapl.printRawCompanyDataKeys()
 aapl.printIncomeStatementDictKeys()
 
-#aapl.printIncState()
+aapl.printIncState()
 
 #Keys of inital dictionary that conatins all data for one company
 #Output should look like ['cik', 'entityName', 'facts']
