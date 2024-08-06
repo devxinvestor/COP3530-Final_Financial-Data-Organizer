@@ -51,5 +51,7 @@ class MyDataFrame:
                 raise KeyError(f"Column '{old_name}' does not exist.")
             if new_name in self.data:
                 raise ValueError(f"Column '{new_name}' already exists.")
-            self.data[new_name] = self.data.remove(old_name)
+            temp_value = self.data[old_name]
+            self.data[new_name] = temp_value
+            self.data.remove(old_name)
             self.columns[self.columns.index(old_name)] = new_name

@@ -16,149 +16,107 @@ def cleanDfDates(df):
     difTolerance = 3
     difTolerance = timedelta(days=difTolerance)
     one_day = timedelta(days=1)
-    #Set quarter ranges
-    quarterRange = 100
-    quarterRange = timedelta(days=quarterRange)
-    threeQuarterRange = 260
-    threeQuarterRange = timedelta(days=threeQuarterRange)
-    yearRange = 350
-    yearRange = timedelta(days=yearRange)
-    
-    i = 0     
+    quarterRange = timedelta(days=100)
+    threeQuarterRange = timedelta(days=260)
+    yearRange = timedelta(days=350)
+
+    i = 0
     while i < len(df.columns) - 1:
         periodRange = periodRangeF(df.columns[i])
 
-        if (i < len(df.columns)-1):
-            nextDateDiff = abs(df.columns[i+1][0]-df.columns[i][1])
+        if i < len(df.columns) - 1:
+            nextDateDiff = abs(df.columns[i + 1][0] - df.columns[i][1])
         else:
             nextDateDiff = difTolerance + one_day
-        
-        if (periodRange > yearRange):
-            if (i < 3) | (i == len(df.columns)-1):
-                 df.drop(df.columns[i])
-                 i=-1
-            elif (abs(df.columns[i-1][1]-df.columns[i+1][0]) < nextDateDiff):
-                 df.drop(df.columns[i])
-                 i = i - 1
+
+        if periodRange > yearRange:
+            if i < 3 or i == len(df.columns) - 1:
+                df.drop(df.columns[i])
+                i = -1
+            elif abs(df.columns[i - 1][1] - df.columns[i + 1][0]) < nextDateDiff:
+                df.drop(df.columns[i])
+                i -= 1
             elif nextDateDiff < difTolerance:
                 if i >= 3:
                     index = df.columns.index(df.columns[i])
-                    currentQuarterVal = df.data[df.columns[index]][0] - (
-                        df.data[df.columns[index-1]][0] + 
-                        df.data[df.columns[index-2]][0] + 
-                        df.data[df.columns[index-3]][0]
+                    currentQuarterVal = (
+                        df.data[df.columns[index]][0] - 
+                        df.data[df.columns[index - 1]][0] - 
+                        df.data[df.columns[index - 2]][0] - 
+                        df.data[df.columns[index - 3]][0]
                     )
                     df.data[df.columns[i]][0] = currentQuarterVal
-                    currentQuarterDate = (df.columns[i-1][1] + one_day, df.columns[i][1])
-                    df.rename(columns={df.columns[i]: currentQuarterDate})
+                    currentQuarterDate = (df.columns[i - 1][1] + one_day, df.columns[i][1])
+                    df.rename({df.columns[i]: currentQuarterDate})
 
-        
-        #column is 9 month period
-        elif ((periodRange > threeQuarterRange) and (periodRange < yearRange)):
-            #If the end period of the next column match up, use data to create missing quarter
+        elif threeQuarterRange < periodRange < yearRange:
             if i == 0:
                 df.drop(df.columns[i])
-                i=-1
-            elif abs(df.columns[i+1][0]-df.columns[i-1][1]) < nextDateDiff:
+                i = -1
+            elif abs(df.columns[i + 1][0] - df.columns[i - 1][1]) < nextDateDiff:
                 df.drop(df.columns[i])
-            elif df.columns[i][1] == df.columns[i+1][1]:
+            elif df.columns[i][1] == df.columns[i + 1][1]:
                 if i >= 1:
                     index = df.columns.index(df.columns[i])
-                    currentQuarterVal = df.data[df.columns[index]][0] - (
-                        df.data[df.columns[index-1]][0] + 
-                        df.data[df.columns[index-2]][0] + 
-                        df.data[df.columns[index-3]][0]
+                    currentQuarterVal = (
+                        df.data[df.columns[index]][0] - 
+                        df.data[df.columns[index - 1]][0] - 
+                        df.data[df.columns[index - 2]][0] - 
+                        df.data[df.columns[index - 3]][0]
                     )
                     df.data[df.columns[i]][0] = currentQuarterVal
-                    currentQuarterDate = (df.columns[i-1][1] + one_day, df.columns[i][1])
-                    df.rename(columns={df.columns[i]: currentQuarterDate})
+                    currentQuarterDate = (df.columns[i - 1][1] + one_day, df.columns[i][1])
+                    df.rename({df.columns[i]: currentQuarterDate})
                 else:
                     df.drop(df.columns[i])
-                    i=-1
-         
-        #column is 6 month period
-        elif ((periodRange > quarterRange) and (periodRange < threeQuarterRange)):
-             #redudant 6 month
+                    i = -1
+
+        elif quarterRange < periodRange < threeQuarterRange:
             if i > 0:
-                prevRange = abs(df.columns[i-1][1]-df.columns[i-1][0])
-                nextRange = abs(df.columns[i+1][1]-df.columns[i+1][0])
-                if (prevRange < quarterRange) and (nextRange < quarterRange):
-                    if (abs(df.columns[i-1][1]-df.columns[i+1][0]) < nextDateDiff):
+                prevRange = abs(df.columns[i - 1][1] - df.columns[i - 1][0])
+                nextRange = abs(df.columns[i + 1][1] - df.columns[i + 1][0])
+                if prevRange < quarterRange and nextRange < quarterRange:
+                    if abs(df.columns[i - 1][1] - df.columns[i + 1][0]) < nextDateDiff:
                         df.drop(df.columns[i])
-                        i = i - 1
-            #If the end period of the next column match up, use data to create missing quarter
-            elif df.columns[i][1] == df.columns[i+1][1]:
+                        i -= 1
+            elif df.columns[i][1] == df.columns[i + 1][1]:
                 index = df.columns.index(df.columns[i])
-                currentQuarterVal = df.data[df.columns[index]][0] - (
-                    df.data[df.columns[index-1]][0] + 
-                    df.data[df.columns[index-2]][0] + 
-                    df.data[df.columns[index-3]][0]
+                currentQuarterVal = (
+                    df.data[df.columns[index]][0] - 
+                    df.data[df.columns[index - 1]][0] - 
+                    df.data[df.columns[index - 2]][0] - 
+                    df.data[df.columns[index - 3]][0]
                 )
                 df.data[df.columns[i]][0] = currentQuarterVal
-                currentQuarterDate = (df.columns[i-1][1] + one_day, df.columns[i][1])
-                df.rename(columns={df.columns[i]: currentQuarterDate})
-         #current column doesnt match next column sequencally 
+                currentQuarterDate = (df.columns[i - 1][1] + one_day, df.columns[i][1])
+                df.rename({df.columns[i]: currentQuarterDate})
 
-        '''
-        if (realRange > quarterRange) and (realRange < threeQuarterRange):
-            if i > 0:
-                prevRange = abs(colNames[i - 1][1] - colNames[i - 1][0])
-                nextRange = abs(colNames[i + 1][1] - colNames[i + 1][0])
-                if (prevRange < quarterRange) and (nextRange < quarterRange):
-                    if abs(colNames[i - 1][1] - colNames[i + 1][0]) < dayRange:
-                        del colNames[i]
-                        i -= 1
-            elif colNames[i][1] == colNames[i + 1][1]:
-                index = df.columns.index(colNames[i])
-                currentQuarterVal = df.data[colNames[i]][0] - df.data[colNames[i + 1]][0]
-                df.data[colNames[i]][0] = currentQuarterVal
-                currentQuarterDate = (colNames[i][0], colNames[i + 1][0] - one_day)
-                df.columns = [currentQuarterDate if col == colNames[i] else col for col in df.columns]
-                colNames[i] = currentQuarterDate
-        
-        elif (realRange > threeQuarterRange) and (realRange < yearRange):
-            if i == 0:
-                del colNames[0:i]
-                i = -1
-            elif abs(colNames[i + 1][0] - colNames[i - 1][1]) < dayRange:
-                del colNames[i]
-            elif colNames[i][1] == colNames[i + 1][1]:
-                if i >= 1:
-                    index = df.columns.index(colNames[i])
-                    currentQuarterVal = df.data[colNames[i]][0] - (df.data[colNames[i - 1]][0] + df.data[colNames[i + 1]][0])
-                    df.data[colNames[i]][0] = currentQuarterVal
-                    currentQuarterDate = (colNames[i][0], colNames[i + 1][0] - one_day)
-                    df.columns = [currentQuarterDate if col == colNames[i] else col for col in df.columns]
-                    colNames[i] = currentQuarterDate
-                else:
-                    del colNames[0:i]
-                    i = -1
-        
-        elif realRange > yearRange:
-            prevRange = abs(colNames[i - 1][1] - colNames[i - 1][0])
-            nextRange = abs(colNames[i + 1][1] - colNames[i + 1][0])
-            if i < 3:
-                del colNames[i]
-                i = -1
-            elif abs(colNames[i - 1][1] - colNames[i + 1][0]) < dayRange:
-                del colNames[i]
-                i -= 1
-            elif dayRange < difTolerance:
-                if i >= 3:
-                    index = df.columns.index(colNames[i])
-                    currentQuarterVal = df.data[colNames[i]][0] - (df.data[colNames[i - 1]][0] + df.data[colNames[i - 2]][0] + df.data[colNames[i - 3]][0])
-                    df.data[colNames[i]][0] = currentQuarterVal
-                    currentQuarterDate = (colNames[i - 1][1] + one_day, colNames[i][1])
-                    df.columns = [currentQuarterDate if col == colNames[i] else col for col in df.columns]
-                    colNames[i] = currentQuarterDate
-                else:
-                    del colNames[0:i]
-                    i = -1
-         '''
         i += 1
     return df
 
+def mergeDf(df1, df2):
+    # Extract column names from df1 and df2
+    columns_df1 = set(df1.columns)
+    columns_df2 = set(df2.columns)
+    
+    # Identify common columns
+    common_columns = columns_df1.intersection(columns_df2)
+    
+    # Initialize new data storage for merged data
+    merged_data = MyHashMap()
+    merged_columns = []
 
+    for col in common_columns:
+        merged_data[col] = df1[col] + df2[col]
+        merged_columns.append(col)
+    
+    # Convert merged_data to sorted_columns and sorted_values for MyDataFrame
+    merged_sorted_columns, merged_sorted_values = merged_data.to_dataframe_data()
+
+    # Create a new MyDataFrame with the merged data
+    merged_df = MyDataFrame(sorted_columns=merged_sorted_columns, sorted_values=merged_sorted_values)
+    
+    return merged_df
 
 
 def getTickers(email):
@@ -274,6 +232,7 @@ class Company:
             if breakLoop:
                 breakLoop = False
                 break
+        '''
         GPKeys = [r"[Gg]ross[Pp]rofit.*"]
         GPKeys = [re.compile(key) for key in GPKeys]
         for keyWord in GPKeys:
@@ -284,6 +243,7 @@ class Company:
             if breakLoop:
                 breakLoop = False
                 break
+        '''
         OpExKeys = [r"[Oo]perating[Ee]xpenses"]
         OpExKeys = [re.compile(key) for key in OpExKeys]
         for keyWord in OpExKeys:
@@ -368,34 +328,61 @@ class Company:
         '''  
     
     def formIncStateFromDict(self):
-        colDict = MyHashMap()
-        item = ['Revenue', 'CostOfGoodsSold', 'NetIncome', 'EPS']
-        # iterate through dictionary to create a condensed dictionary that feeds into dataframe
-        for i in range(len(self.incomeStatementDict[item[0]])):
-            #create a tuple of date times to represent a range of dates for each value 
-             start = self.incomeStatementDict[item[0]][i]['start']
-             end = self.incomeStatementDict[item[0]][i]['end']
-             format = "%Y-%m-%d"
-             start = datetime.strptime(start,format)
-             end = datetime.strptime(end,format)
-             quarter = (start.date(), end.date())
-             colDict[quarter] = [self.incomeStatementDict[item[0]][i]['val']]
-        sorted_columns, sorted_values = colDict.to_dataframe_data()
-        revenueDf = MyDataFrame(sorted_columns, sorted_values)
-        revenueDf = cleanDfDates(revenueDf)
-        '''
-        for i in range(len(self.incomeStatementDict[item[1]])):
-            #create a tuple of date times to represent a range of dates for each value 
-             start = self.incomeStatementDict[item[1]][i]['start']
-             end = self.incomeStatementDict[item[1]][i]['end']
-             format = "%Y-%m-%d"
-             start = datetime.strptime(start,format)
-             end = datetime.strptime(end,format)
-             quarter = (start.date(), end.date())
-             colDict[quarter] = [self.incomeStatementDict[item[1]][i]['val']]
-        '''
-        incomeDf = revenueDf
-        return incomeDf
+        if len(self.incomeStatementDict) == 5:
+            item = ['Revenue', 'CostOfGoodsSold', 'OperatingExpenses', 'NetIncome', 'EPS']
+            lineItems = ['Revenue', 'CostOfGoodsSold', 'Gross Profit', 'OperatingExpenses', 'Income From Operations', 'NetIncome', 'EPS']
+
+            revDict = MyHashMap()
+            # iterate through dictionary to create a condensed dictionary that feeds into dataframe
+
+            for i in range(len(self.incomeStatementDict[item[0]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                start = self.incomeStatementDict[item[0]][i]['start']
+                end = self.incomeStatementDict[item[0]][i]['end']
+                format = "%Y-%m-%d"
+                start = datetime.strptime(start,format)
+                end = datetime.strptime(end,format)
+                quarter = (start.date(), end.date())
+                revDict[quarter] = [self.incomeStatementDict[item[0]][i]['val']]
+            rev_sorted_columns, rev_sorted_values = revDict.to_dataframe_data()
+            revenueDf = MyDataFrame(rev_sorted_columns, rev_sorted_values)
+            revenueDf = cleanDfDates(revenueDf)
+
+            cogDict = MyHashMap()
+            # iterate through dictionary to create a condensed dictionary that feeds into dataframe
+            for i in range(len(self.incomeStatementDict[item[1]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                start = self.incomeStatementDict[item[1]][i]['start']
+                end = self.incomeStatementDict[item[1]][i]['end']
+                format = "%Y-%m-%d"
+                start = datetime.strptime(start,format)
+                end = datetime.strptime(end,format)
+                quarter = (start.date(), end.date())
+                cogDict[quarter] = [self.incomeStatementDict[item[1]][i]['val']]
+            cog_sorted_columns, cog_sorted_values = cogDict.to_dataframe_data()
+            cogDf = MyDataFrame(cog_sorted_columns, cog_sorted_values)
+            cogDf = cleanDfDates(cogDf)
+            incomeDf = mergeDf(revenueDf,cogDf)
+
+            second_last_row = incomeDf.get_row(incomeDf.row_count() - 2)
+            last_row = incomeDf.get_row(incomeDf.row_count() - 1)
+            difference = [second_last - last for second_last, last in zip(second_last_row, last_row)]
+            incomeDf.add_row(difference)
+            '''
+            for i in range(len(self.incomeStatementDict[item[1]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                start = self.incomeStatementDict[item[1]][i]['start']
+                end = self.incomeStatementDict[item[1]][i]['end']
+                format = "%Y-%m-%d"
+                start = datetime.strptime(start,format)
+                end = datetime.strptime(end,format)
+                quarter = (start.date(), end.date())
+                colDict[quarter] = [self.incomeStatementDict[item[1]][i]['val']]
+            '''
+            incomeDf = revenueDf
+            return incomeDf
+        else:
+            return -1
 
     def printIncState(self):
         pd.set_option('display.max_rows', None)
