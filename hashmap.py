@@ -53,6 +53,8 @@ class MyHashMap:
         raise KeyError(f"Key {key} not found")
 
     def __contains__(self, key):
+        if isinstance(key, list):
+            return False
         hash_code = self._hash(key)
         bucket = self.buckets[hash_code]
         for k, _ in bucket:
@@ -67,6 +69,8 @@ class MyHashMap:
         return f"MyHashMap({items})"
     
     def remove(self, key):
+        if isinstance(key, list):
+            raise TypeError("Key cannot be a list")
         hash_code = self._hash(key)
         bucket = self.buckets[hash_code]
         for i, (k, v) in enumerate(bucket):

@@ -38,18 +38,18 @@ class MyDataFrame:
         if self.columns:
             return len(self.data[self.columns[0]])
         return 0
-    
-    '''
-    def __repr__(self):
-        # Prepare the data for tabulate
-        headers = [str(column) for column in self.columns]
-        rows = []
-        for i in range(self.row_count()):
-            row = [self.data[column][i] for column in self.columns]
-            rows.append(row)
-        
-        # Use tabulate to create a table
-        table = tabulate(rows, headers=headers, tablefmt="grid")
-        return f"MyDataFrame:\n{table}"
-    '''
 
+    def drop(self, column_name):
+        if column_name not in self.data:
+            raise KeyError(f"Column '{column_name}' does not exist.")
+        self.data.remove(column_name)
+        self.columns.remove(column_name)
+    
+    def rename(self, columns):
+        for old_name, new_name in columns.items():
+            if old_name not in self.data:
+                raise KeyError(f"Column '{old_name}' does not exist.")
+            if new_name in self.data:
+                raise ValueError(f"Column '{new_name}' already exists.")
+            self.data[new_name] = self.data.remove(old_name)
+            self.columns[self.columns.index(old_name)] = new_name

@@ -9,24 +9,71 @@ from datetime import datetime, timedelta
 
 tickerTime = 0
 
+def periodRangeF(colDate):
+    return abs(colDate[1]-colDate[0])
+
 def cleanDfDates(df):
-    colNames = df.columns
-    difTolerance = 5
+    difTolerance = 3
     difTolerance = timedelta(days=difTolerance)
     one_day = timedelta(days=1)
-    
-    quarterRange = 120
-    threeQuarterRange = 260
-    yearRange = 350
+    #Set quarter ranges
+    quarterRange = 100
     quarterRange = timedelta(days=quarterRange)
+    threeQuarterRange = 260
     threeQuarterRange = timedelta(days=threeQuarterRange)
+    yearRange = 350
     yearRange = timedelta(days=yearRange)
-    realRange = abs(colNames[0][1] - colNames[0][0])
     
     i = 0     
-    while i < len(colNames) - 1:
-        dayRange = abs(colNames[i + 1][0] - colNames[i][1])
-        realRange = abs(colNames[i][1] - colNames[i][0])
+    while i < len(df.columns) - 1:
+        periodRange = periodRangeF(df.columns[i])
+
+        if (i < len(df.columns)-1):
+            nextDateDiff = abs(df.columns[i+1][0]-df.columns[i][1])
+        else:
+            nextDateDiff = difTolerance + one_day
+        
+        if (periodRange > yearRange):
+            if (i < 3) | (i == len(df.columns)-1):
+                 df.drop(df.columns[i])
+                 i=-1
+            elif (abs(df.columns[i-1][1]-df.columns[i+1][0]) < nextDateDiff):
+                 df.drop(df.columns[i])
+                 i = i - 1
+            elif nextDateDiff < difTolerance:
+                if i >= 3:
+                    index = df.columns.index(df.columns[i])
+                    currentQuarterVal = df.data[df.columns[index]][0] - (
+                        df.data[df.columns[index-1]][0] + 
+                        df.data[df.columns[index-2]][0] + 
+                        df.data[df.columns[index-3]][0]
+                    )
+                    df.data[df.columns[i]][0] = currentQuarterVal
+                    currentQuarterDate = (df.columns[i-1][1] + one_day, df.columns[i][1])
+                    df.rename(columns={df.columns[i]: currentQuarterDate})
+
+        '''
+        if (periodRange > yearRange):
+            if (i < 3) | (i == len(df.columns)-1):
+                 df.drop(df.columns[0:i+1], axis=1)
+                 i=-1
+            elif (abs(df.columns[i-1][1]-df.columns[i+1][0]) < nextDateDiff):
+                 df.drop(df.columns[i],axis=1)
+                 i = i - 1    
+             #If the end period of the next column match up, use data to create missing quarter
+            elif nextDateDiff < difTolerance:
+                if i >= 3:
+                    index = df.columns.get_loc(df.columns[i])
+                    currentQuarterVal = df.iloc[0,index] - (df.iloc[0,index-1] + df.iloc[0,index-2] + df.iloc[0,index-3])
+                    df.iloc[0,i] = currentQuarterVal
+                    currentQuarterDate = (df.columns[i-1][1] + one_day, df.columns[i][1])
+                    df = df.rename(columns={df.columns[i]: currentQuarterDate})
+                else:
+                    df = df.drop(df.columns[0:i+1],axis=1)
+                    i=-1
+        '''
+
+        '''
         
         if (realRange > quarterRange) and (realRange < threeQuarterRange):
             if i > 0:
@@ -82,10 +129,9 @@ def cleanDfDates(df):
                 else:
                     del colNames[0:i]
                     i = -1
-        
+         '''
         i += 1
-
-    df.columns = colNames
+        print(df.columns[i])
     return df
 
 
@@ -343,7 +389,7 @@ class Company:
 # tsla.printRawCompanyDataKeys()
 # tsla.printIncomeStatementDictKeys()
         
-aapl = Company("AAPL")
+aapl = Company("TSLA")
 # aapl.printRawCompanyDataKeys()
 aapl.printIncState()
 # aapl.printIncomeStatementDictKeys2()

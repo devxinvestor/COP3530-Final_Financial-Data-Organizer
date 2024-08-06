@@ -27,7 +27,7 @@ def cleanDfDates(df):
     #Iterate through all dates to ensure one after the other format 
     i = 0     
     while i < len(df.columns):
-         periodRange = periodRangeF(df.columns[i]) 
+         periodRange = periodRangeF(df.columns[i])
          
          if (i < len(df.columns)-1):
              nextDateDiff = abs(df.columns[i+1][0]-df.columns[i][1])
