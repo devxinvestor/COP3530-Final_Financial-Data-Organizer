@@ -435,15 +435,10 @@ class Company:
 
 
 
-# tsla = Company("TSLA")
-# tsla.printIncomeStatementDictKeys()
+user_input = input("Enter a ticker for historical income statements(ALL CAPS): ")
 pd.set_option('display.max_columns', None)
-        
-aapl = Company("KO")
-#aapl.printRawCompanyDataKeys()
-aapl.printIncomeStatementDictKeys()
-
-aapl.printIncState()
+tick = Company(user_input)
+tick.printIncState()
 
 #Keys of inital dictionary that conatins all data for one company
 #Output should look like ['cik', 'entityName', 'facts']
