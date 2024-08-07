@@ -455,7 +455,6 @@ class Company:
             return -1
 
     def printIncState(self):
-        pd.set_option('display.max_rows', None)
         print(self.incomeStatement)
             
     
