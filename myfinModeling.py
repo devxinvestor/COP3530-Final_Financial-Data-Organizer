@@ -95,28 +95,46 @@ def cleanDfDates(df):
     return df
 
 def mergeDf(df1, df2):
-    # Extract column names from df1 and df2
-    columns_df1 = set(df1.columns)
-    columns_df2 = set(df2.columns)
-    
-    # Identify common columns
-    common_columns = columns_df1.intersection(columns_df2)
+    # Extract column names from df1 and df2 in order
+    columns_df1 = df1.columns
+    columns_df2 = df2.columns
     
     # Initialize new data storage for merged data
     merged_data = MyHashMap()
     merged_columns = []
 
-    for col in common_columns:
-        merged_data[col] = df1[col] + df2[col]
+    # Add columns and data from df1
+    for col in columns_df1:
+        col_data = df1[col]
+        # Exclude the column if all values are None
+        if all(value is None for value in col_data):
+            continue
+        # Exclude the column if it does not exist in df2
+        if col not in columns_df2:
+            continue
+        merged_data[col] = col_data
         merged_columns.append(col)
+    
+    # Add columns and data from df2 if not already in merged_columns
+    for col in columns_df2:
+        col_data = df2[col]
+        # Exclude the column if all values are None
+        if all(value is None for value in col_data):
+            continue
+        if col not in merged_columns:
+            merged_data[col] = [None] * df1.row_count() + col_data
+            merged_columns.append(col)
+        else:
+            merged_data[col].extend(col_data)
     
     # Convert merged_data to sorted_columns and sorted_values for MyDataFrame
     merged_sorted_columns, merged_sorted_values = merged_data.to_dataframe_data()
-
+    
     # Create a new MyDataFrame with the merged data
     merged_df = MyDataFrame(sorted_columns=merged_sorted_columns, sorted_values=merged_sorted_values)
     
     return merged_df
+
 
 
 def getTickers(email):
@@ -244,6 +262,7 @@ class Company:
                 breakLoop = False
                 break
         '''
+        '''
         OpExKeys = [r"[Oo]perating[Ee]xpenses"]
         OpExKeys = [re.compile(key) for key in OpExKeys]
         for keyWord in OpExKeys:
@@ -255,6 +274,19 @@ class Company:
                 breakLoop = False
                 break
         # Calculatatable from GP and Op Ex
+        '''
+
+        EBITKeys = [r"[Ii]ncome[Ff]rom[Oo]perations*", r"IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments", r"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"]
+        EBITKeys = [re.compile(key) for key in EBITKeys]
+        for keyWord in EBITKeys:
+            for key in self.rawCompanyData.keys():
+                if keyWord.search(key):
+                    incomeStatementDict['EBIT'] = self.rawCompanyData[key]['units']['USD']
+                    break
+            if breakLoop:
+                breakLoop = False
+                break    
+
         '''
         EBITKeys = [r"[Ii]ncome[Ff]rom[Oo]perations*"]
         EBITKeys = [re.compile(key) for key in EBITKeys]
@@ -329,7 +361,7 @@ class Company:
     
     def formIncStateFromDict(self):
         if len(self.incomeStatementDict) == 5:
-            item = ['Revenue', 'CostOfGoodsSold', 'OperatingExpenses', 'NetIncome', 'EPS']
+            item = ['Revenue', 'CostOfGoodsSold', 'EBIT', 'NetIncome', 'EPS']
             lineItems = ['Revenue', 'CostOfGoodsSold', 'Gross Profit', 'OperatingExpenses', 'Income From Operations', 'NetIncome', 'EPS']
 
             revDict = MyHashMap()
@@ -363,11 +395,49 @@ class Company:
             cogDf = MyDataFrame(cog_sorted_columns, cog_sorted_values)
             cogDf = cleanDfDates(cogDf)
             incomeDf = mergeDf(revenueDf,cogDf)
+            incomeDf.drop(incomeDf.columns[-1])
 
-            second_last_row = incomeDf.get_row(incomeDf.row_count() - 2)
-            last_row = incomeDf.get_row(incomeDf.row_count() - 1)
+            second_last_row = incomeDf.get_row(incomeDf.row_count()-2)
+            last_row = incomeDf.get_row(incomeDf.row_count()-1)
             difference = [second_last - last for second_last, last in zip(second_last_row, last_row)]
             incomeDf.add_row(difference)
+
+            opInDict = MyHashMap()
+            for i in range(len(self.incomeStatementDict[item[2]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                start = self.incomeStatementDict[item[2]][i]['start']
+                end = self.incomeStatementDict[item[2]][i]['end']
+                format = "%Y-%m-%d"
+                start = datetime.strptime(start,format)
+                end = datetime.strptime(end,format)
+                quarter = (start.date(), end.date())
+                opInDict[quarter] = [self.incomeStatementDict[item[2]][i]['val']]
+            op_sorted_columns, op_sorted_values = opInDict.to_dataframe_data()
+            opDf = MyDataFrame(op_sorted_columns, op_sorted_values)
+            opDf = cleanDfDates(opDf)
+            incomeDf = mergeDf(incomeDf,opDf)
+            incomeDf.drop(incomeDf.columns[-1])
+
+            take_two_second_last_row = incomeDf.get_row(incomeDf.row_count()-2)
+            take_two_last_row = incomeDf.get_row(incomeDf.row_count()-1)
+            take_two_difference = [second_last - last for second_last, last in zip(take_two_second_last_row, take_two_last_row)]
+            incomeDf.add_row(take_two_difference)
+
+            netDict = MyHashMap()
+            for i in range(len(self.incomeStatementDict[item[3]])):
+                #create a tuple of date times to represent a range of dates for each value 
+                 start = self.incomeStatementDict[item[3]][i]['start']
+                 end = self.incomeStatementDict[item[3]][i]['end']
+                 format = "%Y-%m-%d"
+                 start = datetime.strptime(start,format)
+                 end = datetime.strptime(end,format)
+                 quarter = (start.date(), end.date())
+                 netDict[quarter] = [self.incomeStatementDict[item[3]][i]['val']]
+            net_sorted_columns, net_sorted_values = netDict.to_dataframe_data()
+            netDf = MyDataFrame(net_sorted_columns, net_sorted_values)
+            netDf = cleanDfDates(netDf)
+            incomeDf = mergeDf(incomeDf,netDf)
+
             '''
             for i in range(len(self.incomeStatementDict[item[1]])):
                 #create a tuple of date times to represent a range of dates for each value 
