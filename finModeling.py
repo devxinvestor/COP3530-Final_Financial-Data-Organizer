@@ -92,29 +92,6 @@ def cleanDfDates(df):
                 currentQuarterDate = (df.columns[i][0], df.columns[i+1][0] - one_day)
                 df = df.rename(columns={df.columns[i]: currentQuarterDate})
          #current column doesnt match next column sequencally 
-         '''           
-         elif dayRange > difTolerance:
-            #check if column i+2 is continous with i, if so delete i+1, we likely have redudant info
-            dayRangeNext = abs(colNames[i+2][0]-colNames[i][1])
-            if dayRangeNext < difTolerance:
-                print("Here to delete: ",colNames[i+1])
-                del colNames[i+1]
-            #if i+2 is not continous with i we likely have a 1 or 6 month year data point and we must extract the current quarter data using the prevous quarters
-            else:
-                #redudant data is often missing second date, this if statement filters it out to avoid error
-                if len(colNames[i+1]) == 1:
-                    del colNames[i+1]
-                #If there is not 3 prevous entries following the 10k data we will not be able recover current quarter data
-                elif i >= 3:
-                    currentQuarterVal = df.iloc[0,i+1] - (df.iloc[0,i] + df.iloc[0,i-1] + df.iloc[0,i-2])
-                    df.iloc[0,i+1] = currentQuarterVal
-                    currentQuarterDate = (colNames[i][1] + one_day, colNames[i+1][1])
-                    #colNames[i+1] = currentQuarterDate
-                    #df.columns = [currentQuarterDate if j == (i+1) else name for j, name in enumerate(df.columns)]
-                else:
-                    del colNames[0:i+1]
-                    i = 0
-         '''
         #check last item to ensure 30 day range
          i = i + 1
     return df
@@ -212,35 +189,7 @@ class Company:
                     break
             if breakLoop:
                 breakLoop = False
-                break
-        #Not ready yet
-        '''    
-        while not reloopForBestData:
-            for keyWord in revenueKeys:
-                for key in self.rawCompanyData.keys():
-                    if keyWord.search(key):
-                        incomeStatementDict['Revenue'] = self.rawCompanyData[key]['units']['USD']
-                        endDate = incomeStatementDict['Revenue'][-1]['end']
-                        format = "%Y-%m-%d"
-                        endDate = datetime.strptime(endDate,format)
-                        
-                        if reloopForBestData:
-                            maxSize = max(dataSizes.values())
-                            if dataSizes[keyWord] == maxSize:
-                                breakLoop = True
-                        else:
-                            dataSizes[keyWord] = (len(incomeStatementDict['Revenue']))
-                         
-                        #if(endDate.year == 2024):
-                        breakLoop = True
-                        break
-                if breakLoop:
-                    breakLoop = False
-                    break
-                else:
-                    #reloopForBestData = True
-                    pass
-        '''    
+                break    
         #Do the same all the way dow nthe income statement
         costKeys = [r"[Cc]ost[Oo]f[Gs]oods[Ss]old", r'[Cc]ost[Oo]f[Rr]evenue', r'CostOfGoodsAndServicesSold']
         costKeys = [re.compile(key) for key in costKeys]
@@ -251,33 +200,9 @@ class Company:
                     break
             if breakLoop:
                 breakLoop = False
-                break
-        '''
-        GPKeys = [r"[Gg]ross[Pp]rofit.*"]
-        GPKeys = [re.compile(key) for key in GPKeys]
-        for keyWord in GPKeys:
-            for key in self.rawCompanyData.keys():
-                if keyWord.search(key):
-                    incomeStatementDict['GrossProfit'] = self.rawCompanyData[key]['units']['USD']
-                    break  
-            if breakLoop:
-                breakLoop = False
-                break
-        '''  
-        '''
-        OpExKeys = [r"[Oo]perating[Ee]xpenses", r"SellingGeneralAndAdministrativeExpense"]
-        OpExKeys = [re.compile(key) for key in OpExKeys]
-        for keyWord in OpExKeys:
-            for key in self.rawCompanyData.keys():
-                if keyWord.search(key):
-                    incomeStatementDict['OperatingExpenses'] = self.rawCompanyData[key]['units']['USD']
-                    break
-            if breakLoop:
-                breakLoop = False
-                break
-        '''    
-        # Calculatatable from GP and Op Ex
+                break    
         
+        # Calculatatable from GP and Op Ex
         EBITKeys = [r"[Ii]ncome[Ff]rom[Oo]perations*", r"IncomeLossFromContinuingOperationsBeforeIncomeTaxesMinorityInterestAndIncomeLossFromEquityMethodInvestments", r"IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest"]
         EBITKeys = [re.compile(key) for key in EBITKeys]
         for keyWord in EBITKeys:
@@ -290,18 +215,6 @@ class Company:
                 break    
         
         #Try to get tax expense
-        '''
-        preTaxIncKeys = [r"[Ii]ncome[Bb]efore[Tt]axes*"]
-        PreTaxIncKeys = [re.compile(key) for key in preTaxIncKeys]
-        for keyWord in PreTaxIncKeys:
-            for key in self.rawCompanyData.keys():
-                if keyWord.search(key):
-                    incomeStatementDict['PreTaxIncome'] = self.rawCompanyData[key]['units']['USD']
-                    break
-            if breakLoop:
-                breakLoop = False
-                break
-         '''    
         incomeKeys = [r"\b[Nn]et[Ii]ncome[Ll]oss"]
         incomeKeys = [re.compile(key) for key in incomeKeys]
         for keyWord in incomeKeys:
@@ -399,24 +312,7 @@ class Company:
             netIncomeDf = pd.DataFrame(netDict)
             netIncomeDf = cleanDfDates(netIncomeDf)
             incomeDf = mergeDf(incomeDf,netIncomeDf)
-            
-            '''
-            #create eps row
-            epsDict={}
-            for i in range(len(self.incomeStatementDict[item[4]])):
-                #create a tuple of date times to represent a range of dates for each value 
-                 start = self.incomeStatementDict[item[4]][i]['start']
-                 end = self.incomeStatementDict[item[4]][i]['end']
-                 format = "%Y-%m-%d"
-                 start = datetime.strptime(start,format)
-                 end = datetime.strptime(end,format)
-                 quarter = (start.date(), end.date())
-                 epsDict[quarter] = [round(self.incomeStatementDict[item[4]][i]['val'],2)]
-            epsDf = pd.DataFrame(epsDict)
-            epsDf = cleanDfDates(epsDf)
-            incomeDf = mergeDf(incomeDf,epsDf)
-            '''
-            
+                        
             #add row names
             incomeDf.index = lineItems[0:6]
             return incomeDf
@@ -434,11 +330,12 @@ class Company:
 
 
 
-
+'''
 user_input = input("Enter a ticker for historical income statements(ALL CAPS): ")
 pd.set_option('display.max_columns', None)
 tick = Company(user_input)
 tick.printIncState()
+'''
 
 #Keys of inital dictionary that conatins all data for one company
 #Output should look like ['cik', 'entityName', 'facts']
